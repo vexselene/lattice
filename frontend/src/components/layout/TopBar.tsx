@@ -18,7 +18,7 @@ export const TopBar = () => {
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-[#0A0A0A] border-b border-slate-200 dark:border-slate-800 shrink-0">
+    <div className="flex items-center justify-between px-4 py-2 bg-white/85 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 shadow-sm shrink-0 relative z-20">
       <div className="flex items-center gap-6">
         <div className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">
           Lattice

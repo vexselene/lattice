@@ -13,14 +13,23 @@ interface GraphState {
   deleteNode: (nodeType: string, nodeId: string) => Promise<void>;
   deleteEdge: (edgeId: string) => Promise<void>;
   addEdge: (edgeData: any) => Promise<void>;
+  activeChain: { nodeIds: Set<string>; edgeIds: Set<string> } | null;
+  setActiveChain: (chain: { nodeIds: Set<string>; edgeIds: Set<string> } | null) => void;
+  addTempNode: (node: GraphNode) => void;
+  removeTempNode: (nodeId: string) => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
   selectedNode: null,
+  activeChain: null,
   isLoading: false,
   error: null,
+  
+  setActiveChain: (chain) => set({ activeChain: chain }),
+  addTempNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
+  removeTempNode: (nodeId) => set((state) => ({ nodes: state.nodes.filter(n => n.data.id !== nodeId) })),
   
   fetchGraph: async () => {
     set({ isLoading: true, error: null });

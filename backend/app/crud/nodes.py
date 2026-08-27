@@ -29,8 +29,14 @@ def create_node(db: Session, node_type: str, data: dict, fernet_key: str):
     if not model:
         raise ValueError(f"Unknown node type {node_type}")
     
-    if "password" in data:
-        data["password_encrypted"] = encrypt_value(fernet_key, data.pop("password"))
+    raw_password = data.pop("password_raw", None) or data.pop("password", None)
+    if raw_password and fernet_key:
+        data["password_encrypted"] = encrypt_value(fernet_key, raw_password)
+        
+    data.pop("id", None)
+    data.pop("isEditing", None)
+    data.pop("isExpanded", None)
+    data.pop("isDraft", None)
         
     db_node = model(**data)
     db.add(db_node)
@@ -43,11 +49,16 @@ def update_node(db: Session, node_type: str, node_id: str, data: dict, fernet_ke
     if not db_node:
         return None
         
-    if "password" in data:
-        data["password_encrypted"] = encrypt_value(fernet_key, data.pop("password"))
+    raw_password = data.pop("password_raw", None) or data.pop("password", None)
+    if raw_password and fernet_key:
+        data["password_encrypted"] = encrypt_value(fernet_key, raw_password)
         
     data.pop("created_at", None)
     data.pop("updated_at", None)
+    data.pop("id", None)
+    data.pop("isEditing", None)
+    data.pop("isExpanded", None)
+    data.pop("isDraft", None)
         
     for key, value in data.items():
         setattr(db_node, key, value)

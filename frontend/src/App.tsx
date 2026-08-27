@@ -7,20 +7,15 @@ import AutoLockTimer from './components/auth/AutoLockTimer';
 import TopBar from './components/layout/TopBar';
 import GraphCanvas from './components/graph/GraphCanvas';
 import NodeDetailPanel from './components/sidebar/NodeDetailPanel';
-import NodeForm from './components/forms/NodeForm';
 import EdgeForm from './components/forms/EdgeForm';
 import ConfirmDialog from './components/shared/ConfirmDialog';
-import { Edge, GraphNode, NodeType } from './types/graph';
-import { Plus } from 'lucide-react';
+import { Edge, GraphNode } from './types/graph';
+import { Plus, Mail, User, Server, Smartphone } from 'lucide-react';
 
 function App() {
   const { isUnlocked } = useAuthStore();
   const { theme } = useUIStore();
   const { fetchGraph, deleteNode, deleteEdge: storeDeleteEdge } = useGraphStore();
-
-  const [nodeFormOpen, setNodeFormOpen] = useState(false);
-  const [nodeFormNode, setNodeFormNode] = useState<GraphNode | null>(null);
-  const [nodeFormType, setNodeFormType] = useState<NodeType | undefined>();
 
   const [edgeFormOpen, setEdgeFormOpen] = useState(false);
   const [edgeFormEdge, setEdgeFormEdge] = useState<Edge | null>(null);
@@ -37,12 +32,6 @@ function App() {
       fetchGraph();
     }
   }, [isUnlocked, fetchGraph]);
-
-  const handleCreateNode = () => {
-    setNodeFormNode(null);
-    setNodeFormType(undefined);
-    setNodeFormOpen(true);
-  };
 
   const handleDeleteNode = (node: GraphNode) => {
     setConfirmData({
@@ -78,22 +67,13 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50 dark:bg-slate-950 overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
       <AutoLockTimer />
       <TopBar />
       
       <div className="flex flex-1 overflow-hidden relative">
         <GraphCanvas />
         <NodeDetailPanel 
-          onEditNode={() => {
-            // we have selectedNode in store, NodeDetailPanel assumes it's set
-            // Let's get it from store
-            const selected = useGraphStore.getState().selectedNode;
-            if (selected) {
-              setNodeFormNode(selected);
-              setNodeFormOpen(true);
-            }
-          }}
           onAddEdge={() => {
             setEdgeFormEdge(null);
             setEdgeFormOpen(true);
@@ -109,22 +89,35 @@ function App() {
           }}
         />
 
-        {/* FAB for creating nodes */}
-        <button
-          onClick={handleCreateNode}
-          className="absolute bottom-6 left-6 p-4 bg-[#4F46E5] text-white rounded-full shadow-lg hover:bg-[#4338ca] transition-colors z-10"
-          title="Create Node"
-        >
-          <Plus className="w-6 h-6" />
-        </button>
+        {/* Speed-Dial FAB */}
+        <div className="absolute bottom-6 left-6 flex flex-col items-center gap-3 z-20 group">
+          <div className="flex flex-col gap-3 transition-all duration-300 ease-out origin-bottom scale-0 opacity-0 translate-y-8 pointer-events-none group-hover:scale-100 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto">
+            <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'phone')} className="relative group/btn p-2.5 rounded-full shadow-md bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/50 transition-colors cursor-grab active:cursor-grabbing">
+              <Smartphone className="w-5 h-5" />
+              <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Phone</span>
+            </button>
+            <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'service')} className="relative group/btn p-2.5 rounded-full shadow-md bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50 transition-colors cursor-grab active:cursor-grabbing">
+              <Server className="w-5 h-5" />
+              <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Service</span>
+            </button>
+            <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'account')} className="relative group/btn p-2.5 rounded-full shadow-md bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/50 transition-colors cursor-grab active:cursor-grabbing">
+              <User className="w-5 h-5" />
+              <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Account</span>
+            </button>
+            <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'email')} className="relative group/btn p-2.5 rounded-full shadow-md bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:border-indigo-700/50 transition-colors cursor-grab active:cursor-grabbing">
+              <Mail className="w-5 h-5" />
+              <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Email</span>
+            </button>
+          </div>
+          <div
+            className="p-3.5 bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
+            title="Create Node"
+          >
+            <Plus className="w-5 h-5 transition-transform duration-300 group-hover:rotate-45" />
+          </div>
+        </div>
       </div>
 
-      <NodeForm 
-        isOpen={nodeFormOpen} 
-        onClose={() => setNodeFormOpen(false)} 
-        initialNode={nodeFormNode} 
-        initialType={nodeFormType} 
-      />
       <EdgeForm 
         isOpen={edgeFormOpen} 
         onClose={() => setEdgeFormOpen(false)} 

@@ -1,20 +1,19 @@
 import React from 'react';
 import { useGraphStore } from '../../stores/graphStore';
-import { X, Edit2, Trash2, Plus } from 'lucide-react';
+import { X, Trash2, Plus } from 'lucide-react';
 import PasswordField from './PasswordField';
 import ConnectionsList from './ConnectionsList';
 import EdgeEditor from './EdgeEditor';
 import { Edge } from '../../types/graph';
 
 interface NodeDetailPanelProps {
-  onEditNode: () => void;
   onAddEdge: () => void;
   onEditEdge: (edge: Edge) => void;
   onDeleteEdge: (edge: Edge) => void;
   onDeleteNode: () => void;
 }
 
-export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onEditNode, onAddEdge, onEditEdge, onDeleteEdge, onDeleteNode }) => {
+export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onEditEdge, onDeleteEdge, onDeleteNode }) => {
   const { selectedNode, setSelectedNode, edges } = useGraphStore();
 
   if (!selectedNode) return null;
@@ -23,11 +22,10 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onEditNode, on
   const data: any = selectedNode.data;
 
   return (
-    <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0A0A0A] h-full flex flex-col shrink-0 overflow-y-auto">
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-[#0A0A0A] z-10">
+    <div className="w-80 border-l border-slate-200/80 dark:border-slate-800/80 bg-white/85 dark:bg-slate-900/80 backdrop-blur-md shadow-sm h-full flex flex-col shrink-0 overflow-y-auto z-20">
+      <div className="flex items-center justify-between p-4 border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 bg-transparent z-10">
         <h2 className="font-semibold text-slate-900 dark:text-slate-100 capitalize">{selectedNode.type} Node</h2>
         <div className="flex gap-2">
-          <button onClick={onEditNode} className="text-slate-400 hover:text-blue-500" title="Edit Node"><Edit2 className="w-4 h-4" /></button>
           <button onClick={onDeleteNode} className="text-slate-400 hover:text-red-500" title="Delete Node"><Trash2 className="w-4 h-4" /></button>
           <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
         </div>
