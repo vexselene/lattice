@@ -3,6 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import { PhoneNode as PhoneNodeType } from '../../../types/graph';
 import { Smartphone, Edit2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
+import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
 
 export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data, id }) => {
@@ -14,6 +15,7 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
   });
   
   const { activeChain, removeTempNode } = useGraphStore();
+  const { isEditMode: globalEditMode } = useUIStore();
 
   const isActive = isEditing || (activeChain ? activeChain.nodeIds.has(id) : true);
   
@@ -91,7 +93,7 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
             <span className="px-2 py-0.5 rounded-full bg-amber-100/80 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 text-[10px] font-bold uppercase tracking-widest">
               Phone
             </span>
-            {!isEditing && (
+            {(!isEditing && globalEditMode) && (
               <button onClick={handleEdit} className="p-1 text-slate-400 hover:text-amber-600 transition-colors" title="Edit Node">
                 <Edit2 className="w-3.5 h-3.5" />
               </button>

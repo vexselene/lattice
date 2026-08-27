@@ -3,6 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import { ServiceNode as ServiceNodeType } from '../../../types/graph';
 import { Server, Edit2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
+import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
 
 export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ data, id }) => {
@@ -15,6 +16,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
   });
   
   const { activeChain, removeTempNode } = useGraphStore();
+  const { isEditMode: globalEditMode } = useUIStore();
 
   const isActive = isEditing || (activeChain ? activeChain.nodeIds.has(id) : true);
   
@@ -94,7 +96,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
             <span className="px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-widest">
               Service
             </span>
-            {!isEditing && (
+            {(!isEditing && globalEditMode) && (
               <button onClick={handleEdit} className="p-1 text-slate-400 hover:text-emerald-600 transition-colors" title="Edit Node">
                 <Edit2 className="w-3.5 h-3.5" />
               </button>

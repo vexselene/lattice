@@ -3,6 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import { AccountNode as AccountNodeType } from '../../../types/graph';
 import { User, Edit2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
+import { useUIStore } from '../../../stores/uiStore';
 import PasswordField from '../../sidebar/PasswordField';
 import clsx from 'clsx';
 
@@ -16,6 +17,7 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
   });
   
   const { activeChain, removeTempNode } = useGraphStore();
+  const { isEditMode: globalEditMode } = useUIStore();
 
   const isActive = isEditing || (activeChain ? activeChain.nodeIds.has(id) : true);
   
@@ -95,7 +97,7 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
             <span className="px-2 py-0.5 rounded-full bg-purple-100/80 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 text-[10px] font-bold uppercase tracking-widest">
               Account
             </span>
-            {!isEditing && (
+            {(!isEditing && globalEditMode) && (
               <button onClick={handleEdit} className="p-1 text-slate-400 hover:text-purple-600 transition-colors" title="Edit Node">
                 <Edit2 className="w-3.5 h-3.5" />
               </button>

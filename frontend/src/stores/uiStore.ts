@@ -6,10 +6,12 @@ interface UIState {
   searchQuery: string;
   typeFilters: NodeType[];
   theme: 'dark' | 'light';
+  isEditMode: boolean;
   setSearchQuery: (query: string) => void;
   setTypeFilters: (filters: NodeType[]) => void;
   toggleTypeFilter: (filter: NodeType) => void;
   toggleTheme: () => void;
+  toggleEditMode: () => void;
 }
 
 const getSystemTheme = (): 'dark' | 'light' => {
@@ -25,6 +27,7 @@ export const useUIStore = create<UIState>()(
       searchQuery: '',
       typeFilters: [],
       theme: getSystemTheme(),
+      isEditMode: false,
       setSearchQuery: (query) => set({ searchQuery: query }),
       setTypeFilters: (filters) => set({ typeFilters: filters }),
       toggleTypeFilter: (filter) => set((state) => ({
@@ -33,6 +36,7 @@ export const useUIStore = create<UIState>()(
           : [...state.typeFilters, filter]
       })),
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+      toggleEditMode: () => set((state) => ({ isEditMode: !state.isEditMode })),
     }),
     {
       name: 'ui-storage',

@@ -35,7 +35,7 @@ const edgeTypes = {
 
 const GraphInner = () => {
   const { nodes: storeNodes, edges: storeEdges, addEdge, setActiveChain } = useGraphStore();
-  const { theme, searchQuery, typeFilters } = useUIStore();
+  const { theme, searchQuery, typeFilters, isEditMode } = useUIStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -68,6 +68,9 @@ const GraphInner = () => {
         visibleNodeIds.add(n.data.id);
       }
 
+      // In view mode, we should ideally fetch the position from state, but state is initialized from localstorage anyway.
+      // So the flowNodes generation is the same.
+
       return {
         id: n.data.id,
         type: n.type,
@@ -97,28 +100,33 @@ const GraphInner = () => {
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
     onNodesChange(changes);
+    
     setNodes((currentNodes) => {
-      const positions = currentNodes.reduce((acc, node) => {
-        acc[node.id] = node.position;
-        return acc;
-      }, {} as any);
-      localStorage.setItem('node_positions', JSON.stringify(positions));
+      if (isEditMode) {
+        const positions = currentNodes.reduce((acc, node) => {
+          acc[node.id] = node.position;
+          return acc;
+        }, {} as any);
+        localStorage.setItem('node_positions', JSON.stringify(positions));
+      }
       return currentNodes;
     });
-  }, [onNodesChange, setNodes]);
+  }, [onNodesChange, setNodes, isEditMode]);
 
   const onLayout = useCallback(() => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
     
-    // Save new layout positions
-    const positions = layoutedNodes.reduce((acc, node) => {
-      acc[node.id] = node.position;
-      return acc;
-    }, {} as any);
-    localStorage.setItem('node_positions', JSON.stringify(positions));
-  }, [nodes, edges, getLayoutedElements, setNodes, setEdges]);
+    if (isEditMode) {
+      // Save new layout positions
+      const positions = layoutedNodes.reduce((acc, node) => {
+        acc[node.id] = node.position;
+        return acc;
+      }, {} as any);
+      localStorage.setItem('node_positions', JSON.stringify(positions));
+    }
+  }, [nodes, edges, getLayoutedElements, setNodes, setEdges, isEditMode]);
 
   const onNodeClick = useCallback((_: any, node: FlowNode) => {
     const neighborNodes = new Set<string>();
@@ -201,6 +209,7 @@ const GraphInner = () => {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'glow' }}
+        nodesConnectable={isEditMode}
         fitView
         colorMode={theme}
       >

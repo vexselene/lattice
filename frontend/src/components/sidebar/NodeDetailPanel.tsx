@@ -1,5 +1,6 @@
 import React from 'react';
 import { useGraphStore } from '../../stores/graphStore';
+import { useUIStore } from '../../stores/uiStore';
 import { X, Trash2, Plus } from 'lucide-react';
 import PasswordField from './PasswordField';
 import ConnectionsList from './ConnectionsList';
@@ -15,6 +16,7 @@ interface NodeDetailPanelProps {
 
 export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onEditEdge, onDeleteEdge, onDeleteNode }) => {
   const { selectedNode, setSelectedNode, edges } = useGraphStore();
+  const { isEditMode } = useUIStore();
 
   if (!selectedNode) return null;
 
@@ -26,7 +28,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onE
       <div className="flex items-center justify-between p-4 border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 bg-transparent z-10">
         <h2 className="font-semibold text-slate-900 dark:text-slate-100 capitalize">{selectedNode.type} Node</h2>
         <div className="flex gap-2">
-          <button onClick={onDeleteNode} className="text-slate-400 hover:text-red-500" title="Delete Node"><Trash2 className="w-4 h-4" /></button>
+          {isEditMode && <button onClick={onDeleteNode} className="text-slate-400 hover:text-red-500" title="Delete Node"><Trash2 className="w-4 h-4" /></button>}
           <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
         </div>
       </div>
@@ -55,9 +57,11 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onE
         <div className="border-t border-slate-200 dark:border-slate-800 pt-4 mt-2">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Connections</h3>
-            <button onClick={onAddEdge} className="p-1 rounded bg-[#4F46E5]/10 text-[#4F46E5] hover:bg-[#4F46E5]/20" title="Add Connection">
-              <Plus className="w-3 h-3" />
-            </button>
+            {isEditMode && (
+              <button onClick={onAddEdge} className="p-1 rounded bg-[#4F46E5]/10 text-[#4F46E5] hover:bg-[#4F46E5]/20" title="Add Connection">
+                <Plus className="w-3 h-3" />
+              </button>
+            )}
           </div>
           <ConnectionsList edges={nodeEdges} nodeId={data.id} />
         </div>

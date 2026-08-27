@@ -1,6 +1,7 @@
 import React from 'react';
 import { Edge, GraphNode } from '../../types/graph';
 import { useGraphStore } from '../../stores/graphStore';
+import { useUIStore } from '../../stores/uiStore';
 import { Edit2, Trash2 } from 'lucide-react';
 
 interface EdgeEditorProps {
@@ -18,6 +19,7 @@ const getNodeLabel = (node: GraphNode) => {
 
 export const EdgeEditor: React.FC<EdgeEditorProps> = ({ edges, onEdit, onDelete }) => {
   const { nodes } = useGraphStore();
+  const { isEditMode } = useUIStore();
 
   return (
     <div className="flex flex-col gap-2 mt-4">
@@ -37,14 +39,16 @@ export const EdgeEditor: React.FC<EdgeEditorProps> = ({ edges, onEdit, onDelete 
                 {sourceLabel} &rarr; {targetLabel}
               </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => onEdit(e)} className="text-slate-400 hover:text-blue-500">
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => onDelete(e)} className="text-slate-400 hover:text-red-500">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            {isEditMode && (
+              <div className="flex gap-2">
+                <button onClick={() => onEdit(e)} className="text-slate-400 hover:text-blue-500">
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => onDelete(e)} className="text-slate-400 hover:text-red-500">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )
       })}
