@@ -134,11 +134,11 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(245,158,11,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-amber-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none flex items-center gap-2 bg-[#fbf2e3] text-[#5e411b] dark:bg-[#2b1f13] dark:text-[#f3dcba] cursor-pointer transition-all duration-150 ease-out", isSelected && "ring-2 ring-amber-500 dark:ring-amber-400")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
-        <div className="p-1 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-300 flex-shrink-0">
+        <div className="p-1 rounded-full bg-[#f4e4c9] text-[#825c27] dark:bg-[#3d2c1c] dark:text-[#c99554] flex-shrink-0">
           <Smartphone className="w-3.5 h-3.5" />
         </div>
         <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">

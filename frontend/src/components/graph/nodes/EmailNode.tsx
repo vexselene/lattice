@@ -142,12 +142,12 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
       }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-indigo-50 text-indigo-950 dark:bg-indigo-950 dark:text-indigo-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(99,102,241,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none flex items-center gap-2 bg-[#e8edfb] text-[#2c3e6b] dark:bg-[#161d2f] dark:text-[#c4d3f6] cursor-pointer transition-all duration-150 ease-out", isSelected && "ring-2 ring-blue-500 dark:ring-blue-400")}>
         {/* Handles inside the pill — they use absolute centering by React Flow */}
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
-        <div className="p-1 rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300 flex-shrink-0">
+        <div className="p-1 rounded-full bg-[#dbe4f9] text-[#3b5998] dark:bg-[#202b42] dark:text-[#7b9fe8] flex-shrink-0">
           <Mail className="w-3.5 h-3.5" />
         </div>
         <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">

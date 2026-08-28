@@ -138,11 +138,11 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-purple-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none flex items-center gap-2 bg-[#f0ebf8] text-[#4f356d] dark:bg-[#211630] dark:text-[#dfd0f5] cursor-pointer transition-all duration-150 ease-out", isSelected && "ring-2 ring-purple-500 dark:ring-purple-400")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
-        <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
+        <div className="p-1 rounded-full bg-[#e3d9f3] text-[#6d4697] dark:bg-[#322248] dark:text-[#9f79d1] flex-shrink-0">
           <User className="w-3.5 h-3.5" />
         </div>
         <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">

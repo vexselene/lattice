@@ -137,11 +137,11 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-emerald-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none flex items-center gap-2 bg-[#e6f4ed] text-[#234b35] dark:bg-[#11241a] dark:text-[#bfe7cf] cursor-pointer transition-all duration-150 ease-out", isSelected && "ring-2 ring-emerald-500 dark:ring-emerald-400")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
-        <div className="p-1 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300 flex-shrink-0">
+        <div className="p-1 rounded-full bg-[#d0ecdd] text-[#2d6648] dark:bg-[#1b3627] dark:text-[#58ab7f] flex-shrink-0">
           <Server className="w-3.5 h-3.5" />
         </div>
         <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">
