@@ -111,7 +111,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
     <div
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
-        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0 shadow-sm'
+        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0'
       )}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -137,7 +137,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-emerald-50/80 border-emerald-200/80 text-emerald-950 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-200 shadow-emerald-100/50 dark:shadow-emerald-950/40 cursor-pointer drop-shadow-md transition-all duration-150 ease-out", isSelected && "ring-2 ring-emerald-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 shadow-sm")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-emerald-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 

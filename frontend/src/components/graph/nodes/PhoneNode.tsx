@@ -108,7 +108,7 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
     <div
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
-        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0 shadow-sm'
+        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0'
       )}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -134,7 +134,7 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-amber-50/80 border-amber-200/80 text-amber-950 dark:bg-amber-950/30 dark:border-amber-500/30 dark:text-amber-200 shadow-amber-100/50 dark:shadow-amber-950/40 cursor-pointer drop-shadow-md transition-all duration-150 ease-out", isSelected && "ring-2 ring-amber-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 shadow-sm")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(245,158,11,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-amber-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
