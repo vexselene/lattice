@@ -60,6 +60,7 @@ const GraphInner = () => {
 
   const [proximityTarget, setProximityTarget] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
 
 
   useEffect(() => {
@@ -250,7 +251,21 @@ const GraphInner = () => {
     setDraggingNode(null);
   }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode]);
 
-  const onNodeClick = useCallback((_: any, node: FlowNode) => {
+  const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      setSelectedNodeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(node.id)) {
+          next.delete(node.id);
+        } else {
+          next.add(node.id);
+        }
+        return next;
+      });
+      return; // prevent single-node focus/chain trigger when ctrl-clicking
+    }
+
     const neighborNodes = new Set<string>();
     const matchingEdges = new Set<string>();
 
@@ -267,12 +282,26 @@ const GraphInner = () => {
     setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
   }, [storeEdges, setActiveChain]);
 
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: FlowNode) => {
+    event.preventDefault();
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(node.id)) {
+        next.delete(node.id);
+      } else {
+        next.add(node.id);
+      }
+      return next;
+    });
+  }, []);
+
   const onPaneClick = useCallback(() => {
     setActiveChain(null);
     setSelectedNode(null);
     bumpCollapseAll();
     setConnectMenu(null);
     setActiveEdgeId(null);
+    setSelectedNodeIds(new Set());
   }, [setActiveChain, setSelectedNode, bumpCollapseAll]);
 
   const onEdgeDoubleClick = useCallback((_: any, edge: FlowEdge) => {
@@ -392,14 +421,32 @@ const GraphInner = () => {
     useGraphStore.getState().addTempNode(newNode);
   }, [screenToFlowPosition]);
 
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    ) {
+      return;
+    }
+    e.preventDefault();
+  }, []);
+
   return (
-    <div className={`relative w-full h-full ${theme === 'dark' ? 'dark bg-[#0B0F19]' : 'bg-[#F8FAFC]'}`}>
+    <div 
+      className={`relative w-full h-full ${theme === 'dark' ? 'dark bg-[#0B0F19]' : 'bg-[#F8FAFC]'}`}
+      onContextMenu={handleContextMenu}
+    >
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChangeWithSave}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
@@ -419,7 +466,7 @@ const GraphInner = () => {
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />
-        <GraphControls onLayout={onLayout} />
+        <GraphControls onLayout={onLayout} selectedCount={selectedNodeIds.size} />
       </ReactFlow>
 
       {connectMenu && (

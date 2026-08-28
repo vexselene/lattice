@@ -3,13 +3,22 @@ import { useReactFlow } from '@xyflow/react';
 import { ZoomIn, ZoomOut, Maximize, LayoutDashboard, Layers, Filter, GitFork } from 'lucide-react';
 import clsx from 'clsx';
 
-export const GraphControls: React.FC<{ onLayout: () => void }> = ({ onLayout }) => {
+export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: number }> = ({ onLayout, selectedCount = 0 }) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const [isHovered, setIsHovered] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
 
   const btnClass = "w-10 h-10 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300";
+
+  let countText = selectedCount.toString();
+  let countTextSize = 'text-xs font-bold font-mono tracking-tight';
+  if (selectedCount >= 100) {
+    countText = '99+';
+    countTextSize = 'text-[11px] font-bold font-mono tracking-tight';
+  } else if (selectedCount === 0) {
+    countTextSize = 'text-xs font-bold font-mono';
+  }
 
   return (
     <div className="absolute bottom-4 right-4 z-10 flex gap-2">
@@ -34,8 +43,8 @@ export const GraphControls: React.FC<{ onLayout: () => void }> = ({ onLayout }) 
           )}
         >
           <div className="flex gap-2">
-            <div className={clsx(btnClass, "!text-slate-400 dark:!text-slate-500 font-mono font-bold text-xs select-none")} title="Selected Count">
-              0
+            <div className={clsx(btnClass, selectedCount > 0 ? "!text-indigo-600 dark:!text-indigo-400" : "!text-slate-400 dark:!text-slate-500", "select-none", countTextSize)} title="Selected Count">
+              {countText}
             </div>
             <button className={btnClass} title="Isolate Selected">
               <Filter className="w-5 h-5" />

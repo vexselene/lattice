@@ -8,8 +8,15 @@ export const SearchBar = () => {
   return (
     <div className="relative flex items-center w-64">
       <Search className="absolute left-3 w-4 h-4 text-slate-400" />
-      <input
-        type="text"
+            <input
+        type="search"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-1p-ignore="true"
+        data-lpignore="true"
+        data-form-type="other"
         placeholder="Search nodes..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
