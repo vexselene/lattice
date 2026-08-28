@@ -1,6 +1,5 @@
 import React from 'react';
 import { BaseEdge, getBezierPath, EdgeProps } from '@xyflow/react';
-import { useGraphStore } from '../../../stores/graphStore';
 
 export const GlowEdge: React.FC<EdgeProps> = ({
   id,
@@ -13,6 +12,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
   style,
   markerEnd,
   selected,
+  data,
 }) => {
   const [edgePath] = getBezierPath({
     sourceX,
@@ -23,14 +23,14 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     targetPosition,
   });
 
-  const { activeChain } = useGraphStore();
-  const isActive = activeChain ? activeChain.edgeIds.has(id) : true;
+  // isDimmed is computed in GraphCanvas and passed as edge data
+  const isDimmed = (data as any)?.isDimmed === true;
 
-  const strokeWidth = isActive ? (selected ? 3 : 2) : 1;
-  const strokeColor = isActive ? (selected ? '#818cf8' : '#94a3b8') : '#94a3b8'; // pastel indigo active glow
-  const filter = isActive ? (selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.6))' : 'none') : 'blur(2.5px) grayscale(60%)';
-  const opacity = isActive ? 1 : 0.25;
-  const pointerEvents = isActive ? 'auto' : 'none';
+  const strokeWidth = isDimmed ? 1 : (selected ? 3 : 2);
+  const strokeColor = isDimmed ? '#94a3b8' : (selected ? '#818cf8' : '#94a3b8');
+  const filter = isDimmed ? 'blur(2.5px) grayscale(60%)' : (selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.6))' : 'none');
+  const opacity = isDimmed ? 0.25 : 1;
+  const pointerEvents = isDimmed ? 'none' : 'auto';
 
   return (
     <>

@@ -34,7 +34,7 @@ const edgeTypes = {
 };
 
 const GraphInner = () => {
-  const { nodes: storeNodes, edges: storeEdges, addEdge, setActiveChain } = useGraphStore();
+  const { nodes: storeNodes, edges: storeEdges, addEdge, setActiveChain, activeChain, bumpCollapseAll } = useGraphStore();
   const { theme, searchQuery, typeFilters, isEditMode } = useUIStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
@@ -68,13 +68,13 @@ const GraphInner = () => {
         visibleNodeIds.add(n.data.id);
       }
 
-      // In view mode, we should ideally fetch the position from state, but state is initialized from localstorage anyway.
-      // So the flowNodes generation is the same.
+      // Compute chain dimming — pass as data so node component reads it without hidden flag
+      const isDimmed = activeChain !== null && !activeChain.nodeIds.has(n.data.id) && !(n.data as any).isEditing;
 
       return {
         id: n.data.id,
         type: n.type,
-        data: n.data as any,
+        data: { ...(n.data as any), isDimmed },
         position: savedPositions[n.data.id] || { x: 0, y: 0 },
         hidden: isHidden,
       };
@@ -82,6 +82,7 @@ const GraphInner = () => {
 
     const flowEdges: FlowEdge[] = storeEdges.map((e) => {
       const isHidden = !visibleNodeIds.has(e.source_id) || !visibleNodeIds.has(e.target_id);
+      const isEdgeDimmed = activeChain !== null && !activeChain.edgeIds.has(e.id);
       return {
         id: e.id,
         source: e.source_id,
@@ -90,13 +91,13 @@ const GraphInner = () => {
         targetHandle: 'target-left',
         type: 'glow',
         hidden: isHidden,
-        data: { relation: e.relation },
+        data: { relation: e.relation, isDimmed: isEdgeDimmed },
       };
     });
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain]);
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
     onNodesChange(changes);
@@ -119,7 +120,6 @@ const GraphInner = () => {
     setEdges(layoutedEdges);
     
     if (isEditMode) {
-      // Save new layout positions
       const positions = layoutedNodes.reduce((acc, node) => {
         acc[node.id] = node.position;
         return acc;
@@ -147,7 +147,8 @@ const GraphInner = () => {
 
   const onPaneClick = useCallback(() => {
     setActiveChain(null);
-  }, [setActiveChain]);
+    bumpCollapseAll();
+  }, [setActiveChain, bumpCollapseAll]);
 
   const onConnect = useCallback((params: Connection) => {
     if (params.source && params.target) {

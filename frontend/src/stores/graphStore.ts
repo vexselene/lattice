@@ -8,6 +8,7 @@ interface GraphState {
   selectedNode: GraphNode | null;
   isLoading: boolean;
   error: string | null;
+  collapseAllSignal: number;
   fetchGraph: () => Promise<void>;
   setSelectedNode: (node: GraphNode | null) => void;
   deleteNode: (nodeType: string, nodeId: string) => Promise<void>;
@@ -17,6 +18,7 @@ interface GraphState {
   setActiveChain: (chain: { nodeIds: Set<string>; edgeIds: Set<string> } | null) => void;
   addTempNode: (node: GraphNode) => void;
   removeTempNode: (nodeId: string) => void;
+  bumpCollapseAll: () => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
@@ -24,12 +26,14 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   edges: [],
   selectedNode: null,
   activeChain: null,
+  collapseAllSignal: 0,
   isLoading: false,
   error: null,
   
   setActiveChain: (chain) => set({ activeChain: chain }),
   addTempNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
   removeTempNode: (nodeId) => set((state) => ({ nodes: state.nodes.filter(n => n.data.id !== nodeId) })),
+  bumpCollapseAll: () => set((state) => ({ collapseAllSignal: state.collapseAllSignal + 1 })),
   
   fetchGraph: async () => {
     set({ isLoading: true, error: null });
