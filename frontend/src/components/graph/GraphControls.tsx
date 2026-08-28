@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { ZoomIn, ZoomOut, Maximize, LayoutDashboard, Layers, Filter, GitFork } from 'lucide-react';
 import clsx from 'clsx';
 
-export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: number }> = ({ onLayout, selectedCount = 0 }) => {
+export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: number; activeMultiMode?: 'none' | 'isolate' | 'chains'; onToggleMultiMode?: (mode: 'isolate' | 'chains') => void }> = ({ onLayout, selectedCount = 0, activeMultiMode = 'none', onToggleMultiMode }) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -46,10 +46,18 @@ export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: num
             <div className={clsx(btnClass, selectedCount > 0 ? "!text-indigo-600 dark:!text-indigo-400" : "!text-slate-400 dark:!text-slate-500", "select-none", countTextSize)} title="Selected Count">
               {countText}
             </div>
-            <button className={btnClass} title="Isolate Selected">
+            <button 
+              onClick={() => onToggleMultiMode && onToggleMultiMode('isolate')}
+              className={clsx(btnClass, activeMultiMode === 'isolate' && '!bg-indigo-100 dark:!bg-indigo-900/50 !border-indigo-300 dark:!border-indigo-700 text-indigo-700 dark:text-indigo-300')} 
+              title="Isolate Selected"
+            >
               <Filter className="w-5 h-5" />
             </button>
-            <button className={btnClass} title="Focus Chains">
+            <button 
+              onClick={() => onToggleMultiMode && onToggleMultiMode('chains')}
+              className={clsx(btnClass, activeMultiMode === 'chains' && '!bg-indigo-100 dark:!bg-indigo-900/50 !border-indigo-300 dark:!border-indigo-700 text-indigo-700 dark:text-indigo-300')} 
+              title="Focus Chains"
+            >
               <GitFork className="w-5 h-5" />
             </button>
           </div>

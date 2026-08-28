@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import {
   ReactFlow,
   Background, BackgroundVariant,
@@ -36,6 +36,10 @@ const edgeTypes = {
 };
 
 const GraphInner = () => {
+
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [activeMultiMode, setActiveMultiMode] = useState<'none' | 'isolate' | 'chains'>('none');
+
   const { 
     nodes: storeNodes, 
     edges: storeEdges, 
@@ -60,7 +64,23 @@ const GraphInner = () => {
 
   const [proximityTarget, setProximityTarget] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+
+  const multiChains = useMemo(() => {
+    if (activeMultiMode === 'chains' && selectedNodeIds.size > 0) {
+      const nodeIds = new Set<string>(selectedNodeIds);
+      const edgeIds = new Set<string>();
+      
+      storeEdges.forEach(e => {
+        if (selectedNodeIds.has(e.source_id) || selectedNodeIds.has(e.target_id)) {
+          edgeIds.add(e.id);
+          nodeIds.add(e.source_id);
+          nodeIds.add(e.target_id);
+        }
+      });
+      return { nodeIds, edgeIds };
+    }
+    return null;
+  }, [activeMultiMode, selectedNodeIds, storeEdges]);
 
 
   useEffect(() => {
@@ -83,13 +103,28 @@ const GraphInner = () => {
           isHidden = true;
         }
       }
+      
+      if (activeMultiMode === 'isolate' && selectedNodeIds.size > 0) {
+        if (!selectedNodeIds.has(n.data.id as string)) {
+          isHidden = true;
+        }
+      }
 
       if (!isHidden) {
         visibleNodeIds.add(n.data.id);
       }
 
-      const isDimmed = activeChain !== null && !activeChain.nodeIds.has(n.data.id) && !(n.data as any).isEditing;
+      let isDimmed = false;
+      if (activeMultiMode === 'chains' && multiChains) {
+        if (!multiChains.nodeIds.has(n.data.id as string)) {
+          isDimmed = true;
+        }
+      } else {
+        isDimmed = activeChain !== null && !activeChain.nodeIds.has(n.data.id as string) && !(n.data as any).isEditing;
+      }
+      
       const isModalOpen = expandedNodeId !== null;
+      const isSelected = selectedNodeIds.has(n.data.id as string);
 
       return {
         ...n,
@@ -97,7 +132,8 @@ const GraphInner = () => {
         data: { 
           ...(n.data as any), 
           isDimmed,
-          isModalOpen
+          isModalOpen,
+          isSelected
         },
         position: savedPositions[n.data.id] || { x: 0, y: 0 },
         hidden: isHidden,
@@ -105,9 +141,25 @@ const GraphInner = () => {
     });
 
     const flowEdges: FlowEdge[] = storeEdges.map((e) => {
-      const isHidden = !visibleNodeIds.has(e.source_id) || !visibleNodeIds.has(e.target_id);
-      const isEdgeDimmed = activeChain !== null && !activeChain.edgeIds.has(e.id);
-      const isEdgeHighlighted = activeChain !== null && activeChain.edgeIds.has(e.id);
+      let isHidden = !visibleNodeIds.has(e.source_id) || !visibleNodeIds.has(e.target_id);
+      
+      if (activeMultiMode === 'isolate' && selectedNodeIds.size > 0) {
+        if (!selectedNodeIds.has(e.source_id) || !selectedNodeIds.has(e.target_id)) {
+          isHidden = true;
+        }
+      }
+
+      let isEdgeDimmed = false;
+      let isEdgeHighlighted = false;
+      
+      if (activeMultiMode === 'chains' && multiChains) {
+        isEdgeHighlighted = multiChains.edgeIds.has(e.id);
+        isEdgeDimmed = !isEdgeHighlighted;
+      } else {
+        isEdgeDimmed = activeChain !== null && !activeChain.edgeIds.has(e.id);
+        isEdgeHighlighted = activeChain !== null && activeChain.edgeIds.has(e.id);
+      }
+
       
       const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
       const highlightColor = '#818cf8';
@@ -121,7 +173,7 @@ const GraphInner = () => {
         targetHandle: 'target-left',
         type: 'glow',
         hidden: isHidden,
-        animated: isEdgeHighlighted,
+        animated: isEdgeHighlighted || (activeMultiMode === 'chains' && isEdgeHighlighted),
         data: { relation: e.relation, isDimmed: isEdgeDimmed, isMenuOpen: activeEdgeId === e.id, isModalOpen: expandedNodeId !== null },
         markerEnd: {
           type: MarkerType.Arrow,
@@ -157,7 +209,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, activeEdgeId, expandedNodeId, proximityTarget, draggingNode]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, activeEdgeId, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
@@ -252,7 +304,7 @@ const GraphInner = () => {
   }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode]);
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
-    if (event.ctrlKey || event.metaKey) {
+    if (event.ctrlKey || event.metaKey || activeMultiMode !== 'none') {
       event.preventDefault();
       setSelectedNodeIds((prev) => {
         const next = new Set(prev);
@@ -263,7 +315,7 @@ const GraphInner = () => {
         }
         return next;
       });
-      return; // prevent single-node focus/chain trigger when ctrl-clicking
+      return; // prevent single-node focus/chain trigger when ctrl-clicking or in mode
     }
 
     const neighborNodes = new Set<string>();
@@ -280,7 +332,7 @@ const GraphInner = () => {
     });
 
     setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
-  }, [storeEdges, setActiveChain]);
+  }, [storeEdges, setActiveChain, activeMultiMode]);
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: FlowNode) => {
     event.preventDefault();
@@ -296,13 +348,19 @@ const GraphInner = () => {
   }, []);
 
   const onPaneClick = useCallback(() => {
-    setActiveChain(null);
-    setSelectedNode(null);
-    bumpCollapseAll();
-    setConnectMenu(null);
-    setActiveEdgeId(null);
-    setSelectedNodeIds(new Set());
-  }, [setActiveChain, setSelectedNode, bumpCollapseAll]);
+    if (activeMultiMode !== 'none') {
+      setActiveMultiMode('none');
+      setSelectedNodeIds(new Set());
+      setActiveChain(null);
+    } else {
+      setActiveChain(null);
+      setSelectedNode(null);
+      bumpCollapseAll();
+      setConnectMenu(null);
+      setActiveEdgeId(null);
+      setSelectedNodeIds(new Set());
+    }
+  }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll]);
 
   const onEdgeDoubleClick = useCallback((_: any, edge: FlowEdge) => {
     if (isEditMode) {
@@ -434,9 +492,13 @@ const GraphInner = () => {
     e.preventDefault();
   }, []);
 
+  let canvasCursor = 'cursor-default';
+  if (activeMultiMode === 'isolate') canvasCursor = 'cursor-crosshair';
+  else if (activeMultiMode === 'chains') canvasCursor = 'cursor-copy';
+
   return (
     <div 
-      className={`relative w-full h-full ${theme === 'dark' ? 'dark bg-[#0B0F19]' : 'bg-[#F8FAFC]'}`}
+      className={`relative w-full h-full ${theme === 'dark' ? 'dark bg-[#0B0F19]' : 'bg-[#F8FAFC]'} ${canvasCursor}`}
       onContextMenu={handleContextMenu}
     >
 
@@ -466,7 +528,12 @@ const GraphInner = () => {
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />
-        <GraphControls onLayout={onLayout} selectedCount={selectedNodeIds.size} />
+                <GraphControls 
+          onLayout={onLayout} 
+          selectedCount={selectedNodeIds.size}
+          activeMultiMode={activeMultiMode}
+          onToggleMultiMode={(mode) => setActiveMultiMode(prev => prev === mode ? 'none' : mode)}
+        />
       </ReactFlow>
 
       {connectMenu && (

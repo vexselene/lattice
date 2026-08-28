@@ -25,6 +25,7 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
   // Chain dimming is now passed as prop via GraphCanvas
   const isDimmed = (data as any).isDimmed === true;
   const isModalOpen = (data as any).isModalOpen === true;
+  const isSelected = Boolean((data as any).isSelected);
 
   // Collapse when pane is clicked
   const prevCollapseSignal = useRef(collapseAllSignal);
@@ -141,7 +142,7 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
       }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
-      <div className="group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-indigo-50/80 border-indigo-200/80 text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-500/30 dark:text-indigo-200 shadow-indigo-100/50 dark:shadow-indigo-950/40 cursor-pointer drop-shadow-md">
+      <div className={clsx("group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-indigo-50/80 border-indigo-200/80 text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-500/30 dark:text-indigo-200 shadow-indigo-100/50 dark:shadow-indigo-950/40 cursor-pointer drop-shadow-md transition-all duration-150 ease-out", isSelected && "ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 shadow-sm")}>
         {/* Handles inside the pill — they use absolute centering by React Flow */}
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />

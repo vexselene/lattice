@@ -24,6 +24,7 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
 
   const isDimmed = (data as any).isDimmed === true;
   const isModalOpen = (data as any).isModalOpen === true;
+  const isSelected = Boolean((data as any).isSelected);
 
   const prevCollapseSignal = useRef(collapseAllSignal);
   useEffect(() => {
@@ -137,7 +138,7 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className="group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-purple-50/80 border-purple-200/80 text-purple-950 dark:bg-purple-950/30 dark:border-purple-500/30 dark:text-purple-200 shadow-purple-100/50 dark:shadow-purple-950/40 cursor-pointer drop-shadow-md">
+      <div className={clsx("group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-purple-50/80 border-purple-200/80 text-purple-950 dark:bg-purple-950/30 dark:border-purple-500/30 dark:text-purple-200 shadow-purple-100/50 dark:shadow-purple-950/40 cursor-pointer drop-shadow-md transition-all duration-150 ease-out", isSelected && "ring-2 ring-purple-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 shadow-sm")}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
