@@ -15,6 +15,8 @@ interface GraphState {
   deleteEdge: (edgeId: string) => Promise<void>;
   addEdge: (edgeData: any) => Promise<void>;
   activeChain: { nodeIds: Set<string>; edgeIds: Set<string> } | null;
+  expandedNodeId: string | null;
+  setExpandedNodeId: (id: string | null) => void;
   setActiveChain: (chain: { nodeIds: Set<string>; edgeIds: Set<string> } | null) => void;
   addTempNode: (node: GraphNode) => void;
   removeTempNode: (nodeId: string) => void;
@@ -26,6 +28,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   edges: [],
   selectedNode: null,
   activeChain: null,
+  expandedNodeId: null,
+  setExpandedNodeId: (id) => set({ expandedNodeId: id }),
   collapseAllSignal: 0,
   isLoading: false,
   error: null,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import { ServiceNode as ServiceNodeType } from '../../../types/graph';
 import { Server, Edit2, PanelRight, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
@@ -15,16 +15,20 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
     url: data.url || ''
   });
 
-  const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal } = useGraphStore();
+  const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, setActiveChain, edges: storeEdges } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
+  const connectionInProgress = useStore((s) => s.connection.inProgress);
+  const isConnecting = connectionInProgress;
+
 
   const isDimmed = (data as any).isDimmed === true;
+  const isModalOpen = (data as any).isModalOpen === true;
 
   const prevCollapseSignal = useRef(collapseAllSignal);
   useEffect(() => {
     if (collapseAllSignal !== prevCollapseSignal.current) {
       prevCollapseSignal.current = collapseAllSignal;
-      if (!isEditing) setIsExpanded(false);
+      if (!isEditing) { setIsExpanded(false); setExpandedNodeId(null); }
     }
   }, [collapseAllSignal, isEditing]);
 
@@ -67,6 +71,17 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
           localStorage.setItem('node_positions', JSON.stringify(savedPositions));
         }
         removeTempNode(data.id);
+        
+        if ((data as any).pendingConnection) {
+          const { createEdge } = await import('../../../api/edges');
+          await createEdge({
+            source_type: (data as any).pendingConnection.sourceType,
+            source_id: (data as any).pendingConnection.sourceId,
+            target_type: 'service',
+            target_id: res.id,
+            relation: 'registered_with'
+          });
+        }
       } else {
         await updateNode('service', data.id, {
           name: editData.name,
@@ -94,14 +109,36 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
   return (
     <div
       className={clsx(
-        'relative flex flex-col transition-all duration-300 ease-out w-max max-w-[320px]',
-        isDimmed ? 'opacity-25 blur-[2.5px] grayscale-[60%] pointer-events-none' : 'opacity-100 blur-0 grayscale-0'
+        'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
+        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0 shadow-sm'
       )}
-      onDoubleClick={(e) => { e.stopPropagation(); if (!isEditing) setIsExpanded((prev: boolean) => !prev); }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!isEditing) {
+          const nextState = !isExpanded;
+          setIsExpanded(nextState);
+          if (nextState) {
+            setExpandedNodeId(data.id);
+            // Highlight chain
+            const neighborNodes = new Set([data.id]);
+            const matchingEdges = new Set<string>();
+            storeEdges.forEach((edge) => {
+              if (edge.source_id === data.id || edge.target_id === data.id) {
+                matchingEdges.add(edge.id);
+                neighborNodes.add(edge.source_id);
+                neighborNodes.add(edge.target_id);
+              }
+            });
+            setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
+          } else {
+            setExpandedNodeId(null);
+          }
+        }
+      }}
     >
-      <div className="relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-emerald-50/80 border-emerald-200/80 text-emerald-950 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-200 shadow-emerald-100/50 dark:shadow-emerald-950/40 backdrop-blur-md cursor-pointer drop-shadow-md">
-        <Handle type="target" position={Position.Left} id="target-left" className="w-2.5 h-2.5 !bg-slate-400" />
-        <Handle type="source" position={Position.Right} id="source-right" className="w-2.5 h-2.5 !bg-slate-400" />
+      <div className="group relative rounded-full py-1.5 px-3 border shadow-sm flex items-center gap-2 bg-emerald-50/80 border-emerald-200/80 text-emerald-950 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-200 shadow-emerald-100/50 dark:shadow-emerald-950/40 cursor-pointer drop-shadow-md">
+        <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+        <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
         <div className="p-1 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300 flex-shrink-0">
           <Server className="w-3.5 h-3.5" />
@@ -118,7 +155,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
         )}
       >
         <div
-          className="rounded-2xl p-3 border backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-slate-200/80 dark:border-slate-700/80 shadow-lg text-xs flex flex-col gap-2 cursor-default w-72"
+          className="rounded-xl p-2.5 border bg-white/90 dark:bg-slate-900/90 border-slate-200/80 dark:border-slate-700/80 shadow-lg flex flex-col gap-1.5 cursor-default w-full min-w-[220px] max-w-[280px]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">
@@ -157,11 +194,11 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
           ) : (
             <>
               <div className="flex flex-col gap-1">
-                <span className="text-slate-500 font-medium">Category</span>
+                <span className="text-[11px] font-medium leading-tight text-slate-500">Category</span>
                 <span className="text-slate-700 dark:text-slate-300">{data.category || '—'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-slate-500 font-medium">URL</span>
+                <span className="text-[11px] font-medium leading-tight text-slate-500">URL</span>
                 <span className="text-slate-700 dark:text-slate-300">{data.url || '—'}</span>
               </div>
             </>
