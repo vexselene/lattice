@@ -40,7 +40,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
   const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
   
   const strokeWidth = selected ? 2.5 : 1.25;
-  const strokeColor = isDimmed ? '#475569' : (selected ? '#818cf8' : defaultColor);
+  const strokeColor = isDimmed ? '#47556998' : (selected ? '#818cf8' : defaultColor);
   const filter = selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.5))' : 'none';
   const opacity = isDimmed ? 0.2 : 1;
   const pointerEvents = 'auto';
@@ -67,7 +67,6 @@ export const GlowEdge: React.FC<EdgeProps> = ({
       const { updateEdge } = await import('../../../api/edges');
       await updateEdge(id, { relation: val });
       await useGraphStore.getState().fetchGraph();
-
     } catch (err) {
       console.error(err);
     }
@@ -93,12 +92,13 @@ export const GlowEdge: React.FC<EdgeProps> = ({
           ...style,
           strokeWidth,
           stroke: strokeColor,
-          filter,
+          filter: isDimmed ? 'blur(0.75px)' : filter,
           opacity,
           pointerEvents: 'none',
           transition: 'stroke 300ms ease-out, stroke-opacity 300ms ease-out, stroke-width 300ms ease-out, opacity 300ms ease-out, filter 300ms ease-out',
         }}
       />
+      
       {animated && (
         <path
           d={edgePath}
@@ -116,7 +116,6 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         />
       )}
 
-      
       {isMenuOpen && (
         <EdgeLabelRenderer>
           <div
