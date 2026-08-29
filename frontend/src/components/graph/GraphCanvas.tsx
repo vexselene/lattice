@@ -10,7 +10,8 @@ import {
   Connection,
   useReactFlow,
   MarkerType,
-  SelectionMode
+  SelectionMode,
+  MiniMap
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Mail, User, Server, Smartphone } from 'lucide-react';
@@ -36,6 +37,27 @@ const nodeTypes = {
 const edgeTypes = {
   glow: GlowEdge,
 };
+
+const nodeColor = (node: FlowNode) => {
+  switch (node.type) {
+    case 'email': return '#93c5fd';
+    case 'account': return '#c084fc';
+    case 'service': return '#6ee7b7';
+    case 'phone': return '#fcd34d';
+    default: return '#94a3b8';
+  }
+};
+
+const nodeStrokeColor = (node: FlowNode) => {
+  switch (node.type) {
+    case 'email': return '#60a5fa';
+    case 'account': return '#a855f7';
+    case 'service': return '#34d399';
+    case 'phone': return '#fbbf24';
+    default: return '#94a3b8';
+  }
+};
+
 
 const GraphInner = () => {
 
@@ -599,6 +621,16 @@ const GraphInner = () => {
           selectedCount={selectedNodeIds.size}
           activeMultiMode={activeMultiMode}
           onToggleMultiMode={(mode) => setActiveMultiMode(prev => prev === mode ? 'none' : mode)}
+        />
+        <MiniMap 
+          position="top-right"
+          pannable={true}
+          zoomable={true}
+          nodeColor={nodeColor}
+          nodeStrokeColor={nodeStrokeColor}
+          nodeStrokeWidth={3}
+          maskColor={theme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(240, 242, 245, 0.6)'}
+          className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-md !rounded-xl border border-slate-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg !m-4"
         />
       </ReactFlow>
 
