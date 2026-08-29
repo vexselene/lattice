@@ -84,6 +84,7 @@ const GraphInner = () => {
 
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
   const connectingNodeId = useRef<string | null>(null);
 
   const [proximityTarget, setProximityTarget] = useState<string | null>(null);
@@ -126,9 +127,9 @@ const GraphInner = () => {
   }, []);
 
   const onSelectionChange = useCallback(({ nodes }: { nodes: FlowNode[] }) => {
-    if (!isShiftDraggingRef.current) return;
-    if (nodes.length === 0) return; // ignore empty node arrays
-    pendingSelectionRef.current = new Set(nodes.map(n => n.id));
+    if (isShiftDraggingRef.current && nodes.length > 0) {
+      pendingSelectionRef.current = new Set(nodes.map(n => n.id));
+    }
   }, []);
 
   useEffect(() => {
@@ -154,17 +155,33 @@ const GraphInner = () => {
             activeElement.blur();
           }
         }
+        setSelectedEdgeIds(new Set());
+                setActiveEdgeId(null);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMultiMode, selectedNodeIds, setActiveChain, setSelectedNode]);
+  }, [activeMultiMode, selectedNodeIds, setActiveChain, setSelectedNode, selectedEdgeIds]);
 
   useEffect(() => {
     const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
 
     let visibleNodeIds = new Set<string>();
+
+    let effectiveActiveChain = activeChain;
+    if (selectedEdgeIds.size > 0) {
+      const edgeIds = new Set<string>(activeChain ? activeChain.edgeIds : []);
+      const nodeIds = new Set<string>(activeChain ? activeChain.nodeIds : []);
+      storeEdges.forEach(e => {
+        if (selectedEdgeIds.has(e.id)) {
+          edgeIds.add(e.id);
+          nodeIds.add(e.source_id);
+          nodeIds.add(e.target_id);
+        }
+      });
+      effectiveActiveChain = { nodeIds, edgeIds };
+    }
 
     const flowNodes: FlowNode[] = storeNodes.map((n) => {
       let isHidden = false;
@@ -198,7 +215,7 @@ const GraphInner = () => {
           isDimmed = true;
         }
       } else {
-        isDimmed = activeChain !== null && !activeChain.nodeIds.has(n.data.id as string) && !(n.data as any).isEditing;
+        isDimmed = effectiveActiveChain !== null && !effectiveActiveChain.nodeIds.has(n.data.id as string) && !(n.data as any).isEditing;
       }
       
       const isModalOpen = expandedNodeId !== null;
@@ -235,8 +252,8 @@ const GraphInner = () => {
         isEdgeHighlighted = multiChains.edgeIds.has(e.id);
         isEdgeDimmed = !isEdgeHighlighted;
       } else {
-        isEdgeDimmed = activeChain !== null && !activeChain.edgeIds.has(e.id);
-        isEdgeHighlighted = activeChain !== null && activeChain.edgeIds.has(e.id);
+        isEdgeDimmed = effectiveActiveChain !== null && !effectiveActiveChain.edgeIds.has(e.id);
+        isEdgeHighlighted = effectiveActiveChain !== null && effectiveActiveChain.edgeIds.has(e.id);
       }
 
       
@@ -252,6 +269,7 @@ const GraphInner = () => {
         targetHandle: 'target-left',
         type: 'glow',
         hidden: isHidden,
+        selected: selectedEdgeIds.has(e.id),
         animated: isEdgeHighlighted || (activeMultiMode === 'chains' && isEdgeHighlighted),
         data: { relation: e.relation, isDimmed: isEdgeDimmed, isMenuOpen: activeEdgeId === e.id, isModalOpen: expandedNodeId !== null },
         markerEnd: {
@@ -288,7 +306,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, activeEdgeId, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, selectedEdgeIds, activeEdgeId, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
@@ -383,6 +401,8 @@ const GraphInner = () => {
   }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode]);
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
+    setSelectedEdgeIds(new Set()); // clear edge selection when clicking node
+
     if (event.ctrlKey || event.metaKey || activeMultiMode !== 'none') {
       event.preventDefault();
       event.stopPropagation();
@@ -431,6 +451,7 @@ const GraphInner = () => {
     if (activeMultiMode !== 'none') {
       setActiveMultiMode('none');
       setSelectedNodeIds(new Set());
+      setSelectedEdgeIds(new Set());
       setActiveChain(null);
     } else {
       setActiveChain(null);
@@ -439,14 +460,35 @@ const GraphInner = () => {
       setConnectMenu(null);
       setActiveEdgeId(null);
       setSelectedNodeIds(new Set());
+      setSelectedEdgeIds(new Set());
     }
-  }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll]);
+  }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll, setSelectedEdgeIds]);
 
   const onEdgeDoubleClick = useCallback((_: any, edge: FlowEdge) => {
     if (isEditMode) {
       setActiveEdgeId(edge.id);
     }
   }, [isEditMode]);
+
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: FlowEdge) => {
+    event.stopPropagation();
+    
+    setSelectedEdgeIds((prev) => {
+      const next = new Set(prev);
+      if (event.ctrlKey || event.metaKey) {
+        if (next.has(edge.id)) next.delete(edge.id);
+        else next.add(edge.id);
+      } else {
+        next.clear();
+        next.add(edge.id);
+      }
+      return next;
+    });
+    
+    setSelectedNodeIds(new Set());
+    setActiveChain(null);
+    setActiveMultiMode('none');
+  }, [setSelectedEdgeIds, setSelectedNodeIds, setActiveChain, setActiveMultiMode]);
 
   const onConnect = useCallback((params: Connection) => {
     if (!isEditMode) return;
@@ -608,6 +650,7 @@ const GraphInner = () => {
         onPaneClick={onPaneClick}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onConnect={onConnect}
         onConnectStart={onConnectStart}
@@ -625,6 +668,7 @@ const GraphInner = () => {
         selectionKeyCode="Shift"
         multiSelectionKeyCode={['Control', 'Meta']}
         selectNodesOnDrag={false}
+        edgesFocusable={false}
         onSelectionStart={onSelectionStart}
         onSelectionEnd={onSelectionEnd}
         onSelectionChange={onSelectionChange}

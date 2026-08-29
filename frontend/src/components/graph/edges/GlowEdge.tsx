@@ -7,8 +7,6 @@ import { EdgeRelation } from '../../../types/graph';
 
 export const GlowEdge: React.FC<EdgeProps> = ({
   id,
-  source,
-  target,
   sourceX,
   sourceY,
   targetX,
@@ -30,8 +28,9 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     targetPosition,
   });
 
-  const { deleteEdge, setActiveChain } = useGraphStore();
+  const { deleteEdge } = useGraphStore();
   const { theme } = useUIStore();
+  const [isHovered, setIsHovered] = React.useState(false);
 
   const isDimmed = (data as any)?.isDimmed === true;
   const isMenuOpen = (data as any)?.isMenuOpen === true;
@@ -39,22 +38,13 @@ export const GlowEdge: React.FC<EdgeProps> = ({
 
   const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
   
-  const strokeWidth = selected ? 2.5 : 1.25;
-  const strokeColor = isDimmed ? '#47556998' : (selected ? '#818cf8' : defaultColor);
-  const filter = selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.5))' : 'none';
+  const strokeWidth = selected ? 2.5 : (isHovered ? 2.0 : 1.25);
+  const strokeColor = isDimmed ? '#47556998' : (selected || isHovered ? '#818cf8' : defaultColor);
+  const filter = selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.5))' : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none');
   const opacity = isDimmed ? 0.2 : 1;
   const pointerEvents = 'auto';
 
-  const onEdgeClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nodes = new Set<string>();
-    nodes.add(source);
-    nodes.add(target);
-    const edges = new Set<string>();
-    edges.add(id);
-    setActiveChain({ nodeIds: nodes, edgeIds: edges });
-  };
-
+  
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     deleteEdge(id);
@@ -79,8 +69,9 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         fill="none"
         stroke="transparent"
         strokeWidth={24}
-        onClick={onEdgeClick}
-        className="cursor-pointer"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="cursor-pointer transition-all duration-300"
         style={{ pointerEvents: pointerEvents as any }}
       />
 

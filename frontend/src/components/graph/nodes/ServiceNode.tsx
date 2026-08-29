@@ -1,3 +1,4 @@
+import CopyFieldButton from '../../shared/CopyFieldButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { ServiceNode as ServiceNodeType } from '../../../types/graph';
@@ -194,13 +195,19 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Category</span>
-                <span className="text-slate-700 dark:text-slate-300">{data.category || '—'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.category || '—'}</span>
+                  {!!data.category && <CopyFieldButton value={data.category} />}
+                </div>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">URL</span>
-                <span className="text-slate-700 dark:text-slate-300">{data.url || '—'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.url || '—'}</span>
+                  {!!data.url && <CopyFieldButton value={data.url} />}
+                </div>
               </div>
             </>
           )}

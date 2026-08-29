@@ -4,6 +4,7 @@ import { AccountNode as AccountNodeType } from '../../../types/graph';
 import { User, Edit2, PanelRight, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
+import CopyFieldButton from '../../shared/CopyFieldButton';
 import PasswordField from '../../sidebar/PasswordField';
 import clsx from 'clsx';
 
@@ -195,9 +196,12 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Service ID</span>
-                <span className="text-slate-700 dark:text-slate-300">{data.service_id || '—'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.service_id || '—'}</span>
+                  {!!data.service_id && <CopyFieldButton value={data.service_id} />}
+                </div>
               </div>
 
               {('password_encrypted' in data && data.password_encrypted) && (

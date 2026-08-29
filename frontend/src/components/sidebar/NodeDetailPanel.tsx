@@ -5,6 +5,7 @@ import { X, Trash2, Plus } from 'lucide-react';
 import PasswordField from './PasswordField';
 import ConnectionsList from './ConnectionsList';
 import EdgeEditor from './EdgeEditor';
+import CopyFieldButton from '../shared/CopyFieldButton';
 import { Edge } from '../../types/graph';
 
 interface NodeDetailPanelProps {
@@ -39,9 +40,12 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onE
           {Object.entries(data).map(([k, v]) => {
             if (k === 'id' || k === 'password_encrypted' || k === 'created_at' || k === 'updated_at') return null;
             return (
-              <div key={k} className="flex flex-col">
+              <div key={k} className="flex flex-col group">
                 <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{k.replace('_', ' ')}</span>
-                <span className="text-sm text-slate-900 dark:text-slate-100">{String(v || '—')}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-900 dark:text-slate-100 break-all">{String(v || '—')}</span>
+                  {!!v && <CopyFieldButton value={String(v)} />}
+                </div>
               </div>
             );
           })}

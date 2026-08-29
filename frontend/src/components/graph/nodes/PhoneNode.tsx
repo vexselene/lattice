@@ -1,3 +1,4 @@
+import CopyFieldButton from '../../shared/CopyFieldButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { PhoneNode as PhoneNodeType } from '../../../types/graph';
@@ -189,10 +190,13 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium leading-tight text-slate-500">Carrier</span>
-              <span className="text-slate-700 dark:text-slate-300">{data.carrier || '—'}</span>
-            </div>
+            <div className="flex flex-col gap-1 group">
+                <span className="text-[11px] font-medium leading-tight text-slate-500">Carrier</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.carrier || '—'}</span>
+                  {!!data.carrier && <CopyFieldButton value={data.carrier} />}
+                </div>
+              </div>
           )}
         </div>
       </div>

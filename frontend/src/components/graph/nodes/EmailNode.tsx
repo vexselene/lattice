@@ -4,6 +4,7 @@ import { EmailNode as EmailNodeType } from '../../../types/graph';
 import { Mail, Edit2, PanelRight, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
+import CopyFieldButton from '../../shared/CopyFieldButton';
 import PasswordField from '../../sidebar/PasswordField';
 import clsx from 'clsx';
 
@@ -201,9 +202,12 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Provider</span>
-                <span className="text-slate-700 dark:text-slate-300">{data.provider || '—'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.provider || '—'}</span>
+                  {!!data.provider && <CopyFieldButton value={data.provider} />}
+                </div>
               </div>
 
               {('password_encrypted' in data && data.password_encrypted) && (
