@@ -23,6 +23,7 @@ import ServiceNode from './nodes/ServiceNode';
 import PhoneNode from './nodes/PhoneNode';
 import GlowEdge from './edges/GlowEdge';
 import GraphControls from './GraphControls';
+import SelectionActionDock from './SelectionActionDock';
 import useGraphLayout from '../../hooks/useGraphLayout';
 
 const nodeTypes = {
@@ -600,6 +601,17 @@ const GraphInner = () => {
           onToggleMultiMode={(mode) => setActiveMultiMode(prev => prev === mode ? 'none' : mode)}
         />
       </ReactFlow>
+
+      <SelectionActionDock 
+        selectedNodeIds={selectedNodeIds}
+        onClearSelection={() => {
+          setSelectedNodeIds(new Set());
+          if (activeMultiMode !== 'none') {
+            setActiveMultiMode('none');
+          }
+          setActiveChain(null);
+        }}
+      />
 
       {connectMenu && (
         <div
