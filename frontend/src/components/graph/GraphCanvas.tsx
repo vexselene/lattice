@@ -501,7 +501,23 @@ const GraphInner = () => {
     connectingNodeId.current = null;
   }, [isEditMode]);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
+
+  useEffect(() => {
+    const handleFlyToNode = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const nodeId = customEvent.detail?.id;
+      if (!nodeId) return;
+
+      const node = nodes.find(n => n.id === nodeId);
+      if (node && node.position) {
+        setCenter(node.position.x + 90, node.position.y + 40, { zoom: 1.2, duration: 800 });
+        setSelectedNodeIds(new Set([nodeId]));
+      }
+    };
+    window.addEventListener('flyToNode', handleFlyToNode);
+    return () => window.removeEventListener('flyToNode', handleFlyToNode);
+  }, [nodes, setCenter, setSelectedNodeIds]);
 
   const handleCreateFromMenu = useCallback((type: string) => {
     if (!connectMenu) return;
