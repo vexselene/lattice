@@ -10,3 +10,27 @@
     stroke-dashoffset: 0;
   }
 }
+
+.react-flow__selection {
+  border: none !important;
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2) inset !important;
+}
+
+.react-flow__nodesselection {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.react-flow__nodesselection-rect {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 20px !important;
+  margin: -16px !important;
+  padding: 16px !important;
+  box-sizing: content-box !important;
+  pointer-events: none !important;
+}

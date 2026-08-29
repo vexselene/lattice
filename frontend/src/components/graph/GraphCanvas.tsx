@@ -9,7 +9,8 @@ import {
   Edge as FlowEdge,
   Connection,
   useReactFlow,
-  MarkerType
+  MarkerType,
+  SelectionMode
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Mail, User, Server, Smartphone } from 'lucide-react';
@@ -82,6 +83,60 @@ const GraphInner = () => {
     return null;
   }, [activeMultiMode, selectedNodeIds, storeEdges]);
 
+  const isShiftDraggingRef = useRef(false);
+  const pendingSelectionRef = useRef<Set<string>>(new Set());
+
+  const onSelectionStart = useCallback(() => {
+    isShiftDraggingRef.current = true;
+  }, []);
+
+  const onSelectionEnd = useCallback(() => {
+    isShiftDraggingRef.current = false;
+    if (pendingSelectionRef.current.size > 0) {
+      setSelectedNodeIds(prev => {
+        const next = new Set(prev);
+        pendingSelectionRef.current.forEach(id => next.add(id));
+        return next;
+      });
+      pendingSelectionRef.current.clear();
+    }
+  }, []);
+
+  const onSelectionChange = useCallback(({ nodes }: { nodes: FlowNode[] }) => {
+    if (!isShiftDraggingRef.current) return;
+    if (nodes.length === 0) return; // ignore empty node arrays
+    pendingSelectionRef.current = new Set(nodes.map(n => n.id));
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const activeElement = document.activeElement;
+        if (activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          (activeElement as HTMLElement).isContentEditable
+        )) {
+          return;
+        }
+
+        if (activeMultiMode !== 'none') {
+          setActiveMultiMode('none');
+          setActiveChain(null);
+        } else if (selectedNodeIds.size > 0) {
+          setSelectedNodeIds(new Set());
+        } else {
+          setSelectedNode(null);
+          if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeMultiMode, selectedNodeIds, setActiveChain, setSelectedNode]);
 
   useEffect(() => {
     const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
@@ -129,6 +184,7 @@ const GraphInner = () => {
       return {
         ...n,
         id: n.data.id,
+        selected: isSelected,
         data: { 
           ...(n.data as any), 
           isDimmed,
@@ -306,6 +362,7 @@ const GraphInner = () => {
   const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
     if (event.ctrlKey || event.metaKey || activeMultiMode !== 'none') {
       event.preventDefault();
+      event.stopPropagation();
       setSelectedNodeIds((prev) => {
         const next = new Set(prev);
         if (next.has(node.id)) {
@@ -524,6 +581,14 @@ const GraphInner = () => {
         defaultEdgeOptions={{ type: 'glow' }}
         nodesConnectable={isEditMode}
         edgesReconnectable={isEditMode}
+        selectionMode={SelectionMode.Partial}
+        selectionOnDrag={true}
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode={['Control', 'Meta']}
+        selectNodesOnDrag={false}
+        onSelectionStart={onSelectionStart}
+        onSelectionEnd={onSelectionEnd}
+        onSelectionChange={onSelectionChange}
         fitView
         colorMode={theme}
       >
