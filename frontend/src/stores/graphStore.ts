@@ -21,6 +21,8 @@ interface GraphState {
   addTempNode: (node: GraphNode) => void;
   removeTempNode: (nodeId: string) => void;
   bumpCollapseAll: () => void;
+  openMenuEdgeId: string | null;
+  setOpenMenuEdgeId: (id: string | null) => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
@@ -33,11 +35,13 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   collapseAllSignal: 0,
   isLoading: false,
   error: null,
+  openMenuEdgeId: null,
+  setOpenMenuEdgeId: (id) => set({ openMenuEdgeId: id }),
   
   setActiveChain: (chain) => set({ activeChain: chain }),
   addTempNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
   removeTempNode: (nodeId) => set((state) => ({ nodes: state.nodes.filter(n => n.data.id !== nodeId) })),
-  bumpCollapseAll: () => set((state) => ({ collapseAllSignal: state.collapseAllSignal + 1 })),
+  bumpCollapseAll: () => set((state) => ({ collapseAllSignal: state.collapseAllSignal + 1, openMenuEdgeId: null, expandedNodeId: null })),
   
   fetchGraph: async () => {
     set({ isLoading: true, error: null });

@@ -17,7 +17,7 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
     password: ''
   });
 
-  const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, setActiveChain, edges: storeEdges } = useGraphStore();
+  const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
   const connectionInProgress = useStore((s) => s.connection.inProgress);
   const isConnecting = connectionInProgress;
@@ -35,7 +35,13 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
       prevCollapseSignal.current = collapseAllSignal;
       if (!isEditing) { setIsExpanded(false); setExpandedNodeId(null); }
     }
-  }, [collapseAllSignal, isEditing]);
+  }, [collapseAllSignal, isEditing, setExpandedNodeId]);
+
+  useEffect(() => {
+    if (expandedNodeId !== data.id && !isEditing && isExpanded) {
+      setIsExpanded(false);
+    }
+  }, [expandedNodeId, data.id, isEditing, isExpanded]);
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -120,22 +126,12 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
       )}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('cancel-node-click'));
         if (!isEditing) {
           const nextState = !isExpanded;
           setIsExpanded(nextState);
           if (nextState) {
             setExpandedNodeId(data.id);
-            // Highlight chain
-            const neighborNodes = new Set([data.id]);
-            const matchingEdges = new Set<string>();
-            storeEdges.forEach((edge) => {
-              if (edge.source_id === data.id || edge.target_id === data.id) {
-                matchingEdges.add(edge.id);
-                neighborNodes.add(edge.source_id);
-                neighborNodes.add(edge.target_id);
-              }
-            });
-            setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
           } else {
             setExpandedNodeId(null);
           }
@@ -164,7 +160,7 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
         )}
       >
         <div
-          className="rounded-xl p-2.5 border bg-white/90 dark:bg-slate-900/90 border-slate-200/80 dark:border-slate-700/80 shadow-lg flex flex-col gap-1.5 cursor-default w-full min-w-[220px] max-w-[280px]"
+          className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[120px] max-w-[220px] text-xs"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">

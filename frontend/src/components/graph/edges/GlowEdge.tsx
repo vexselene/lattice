@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BaseEdge, getBezierPath, EdgeProps, EdgeLabelRenderer } from '@xyflow/react';
 import { Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { EdgeRelation } from '../../../types/graph';
+
+// Global map to preserve click timestamps perfectly even if React remounts the edge component
+const edgeClickTimes = new Map<string, number>();
 
 export const GlowEdge: React.FC<EdgeProps> = ({
   id,
@@ -28,12 +31,15 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     targetPosition,
   });
 
-  const { deleteEdge } = useGraphStore();
-  const { theme } = useUIStore();
-  const [isHovered, setIsHovered] = React.useState(false);
+  const { deleteEdge, setOpenMenuEdgeId, openMenuEdgeId } = useGraphStore();
+  const { theme, isEditMode } = useUIStore();
+  const [isHovered, setIsHovered] = useState(false);
+  const isMenuOpen = openMenuEdgeId === id && selected;
 
   const isDimmed = (data as any)?.isDimmed === true;
-  const isMenuOpen = (data as any)?.isMenuOpen === true;
+  const formatRelation = (r: string) => {
+    return r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
   const relation = (data as any)?.relation || 'registered_with';
 
   const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
@@ -42,9 +48,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
   const strokeColor = isDimmed ? '#47556998' : (selected || isHovered ? '#818cf8' : defaultColor);
   const filter = selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.5))' : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none');
   const opacity = isDimmed ? 0.2 : 1;
-  const pointerEvents = 'auto';
 
-  
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     deleteEdge(id);
@@ -62,23 +66,43 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     }
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Only track primary pointer / left click
+    if (e.button !== 0) return;
+
+    const now = Date.now();
+    const lastClickTime = edgeClickTimes.get(id) || 0;
+    
+    // Globally record the edge click to prevent phantom pane clicks
+    (window as any).__lastEdgeClick = now;
+    
+    // Window of 450ms for reliable trackpad double taps
+    if (now - lastClickTime < 450) {
+      e.stopPropagation();
+      e.preventDefault();
+      setOpenMenuEdgeId(isMenuOpen ? null : id);
+      (window as any).__lastMenuToggle = now;
+      edgeClickTimes.set(id, 0); // reset
+    } else {
+      edgeClickTimes.set(id, now);
+    }
+  };
+
+  const handleClickCapture = (e: React.MouseEvent) => {
+    // Swallow the native click event if we just toggled the menu via pointerdown
+    if (Date.now() - ((window as any).__lastMenuToggle || 0) < 500) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
   return (
     <>
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={24}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="cursor-pointer transition-all duration-300"
-        style={{ pointerEvents: pointerEvents as any }}
-      />
-
       <BaseEdge
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
+        interactionWidth={0}
         style={{
           ...style,
           strokeWidth,
@@ -88,6 +112,20 @@ export const GlowEdge: React.FC<EdgeProps> = ({
           pointerEvents: 'none',
           transition: 'stroke 300ms ease-out, stroke-opacity 300ms ease-out, stroke-width 300ms ease-out, opacity 300ms ease-out, filter 300ms ease-out',
         }}
+      />
+
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={24}
+        onPointerDown={handlePointerDown}
+        onClickCapture={handleClickCapture}
+        vectorEffect="non-scaling-stroke"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="cursor-pointer"
+        style={{ pointerEvents: 'all' }}
       />
       
       {animated && (
@@ -116,27 +154,39 @@ export const GlowEdge: React.FC<EdgeProps> = ({
               pointerEvents: 'all',
               zIndex: 1000
             }}
-            className="nodrag nopan flex items-center gap-2 p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl"
+            className="nodrag nopan bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800 rounded-md shadow-md max-w-[170px] w-auto px-1.5 py-1 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
           >
-            <select
-              value={relation}
-              onChange={handleRelationChange}
-              className="text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 outline-none focus:border-indigo-500 text-slate-700 dark:text-slate-300 cursor-pointer"
-            >
-              <option value="registered_with">Registered With</option>
-              <option value="recovery_for">Recovery For</option>
-              <option value="uses_username">Uses Username</option>
-              <option value="linked_account">Linked Account</option>
-            </select>
-            <button
-              onClick={handleDelete}
-              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
-              title="Delete Connection"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center justify-between gap-1 group">
+              {isEditMode ? (
+                <select
+                  value={relation}
+                  onChange={handleRelationChange}
+                  className="flex-1 text-[10px] font-medium bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded px-1 py-0.5 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="registered_with">Registered With</option>
+                  <option value="recovery_for">Recovery For</option>
+                  <option value="uses_username">Uses Username</option>
+                  <option value="linked_account">Linked Account</option>
+                </select>
+              ) : (
+                <div className="flex items-center min-w-0 px-0.5">
+                  <span className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    {formatRelation(relation)}
+                  </span>
+                </div>
+              )}
+              {isEditMode && (
+                <button
+                  onClick={handleDelete}
+                  className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors shrink-0"
+                  title="Delete Connection"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
         </EdgeLabelRenderer>
       )}

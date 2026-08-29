@@ -83,7 +83,6 @@ const GraphInner = () => {
   const { getLayoutedElements } = useGraphLayout();
 
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
-  const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
   const connectingNodeId = useRef<string | null>(null);
 
@@ -156,7 +155,6 @@ const GraphInner = () => {
           }
         }
         setSelectedEdgeIds(new Set());
-                setActiveEdgeId(null);
       }
     };
 
@@ -225,6 +223,7 @@ const GraphInner = () => {
         ...n,
         id: n.data.id,
         selected: isSelected,
+        zIndex: expandedNodeId === n.data.id ? 1000 : (isSelected ? 50 : 1),
         data: { 
           ...(n.data as any), 
           isDimmed,
@@ -271,7 +270,7 @@ const GraphInner = () => {
         hidden: isHidden,
         selected: selectedEdgeIds.has(e.id),
         animated: isEdgeHighlighted || (activeMultiMode === 'chains' && isEdgeHighlighted),
-        data: { relation: e.relation, isDimmed: isEdgeDimmed, isMenuOpen: activeEdgeId === e.id, isModalOpen: expandedNodeId !== null },
+        data: { relation: e.relation, isDimmed: isEdgeDimmed, isModalOpen: expandedNodeId !== null },
         markerEnd: {
           type: MarkerType.Arrow,
           width: isEdgeHighlighted ? 14 : 12,
@@ -306,7 +305,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, selectedEdgeIds, activeEdgeId, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
@@ -400,6 +399,19 @@ const GraphInner = () => {
     setDraggingNode(null);
   }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode]);
 
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleCancelNodeClick = () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+    };
+    window.addEventListener('cancel-node-click', handleCancelNodeClick);
+    return () => window.removeEventListener('cancel-node-click', handleCancelNodeClick);
+  }, []);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
     setSelectedEdgeIds(new Set()); // clear edge selection when clicking node
 
@@ -415,24 +427,35 @@ const GraphInner = () => {
         }
         return next;
       });
-      return; // prevent single-node focus/chain trigger when ctrl-clicking or in mode
+      return;
     }
 
-    const neighborNodes = new Set<string>();
-    const matchingEdges = new Set<string>();
+    if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+    clickTimeoutRef.current = setTimeout(() => {
+      const neighborNodes = new Set<string>();
+      const matchingEdges = new Set<string>();
 
-    neighborNodes.add(node.id);
+      neighborNodes.add(node.id);
 
-    storeEdges.forEach((edge) => {
-      if (edge.source_id === node.id || edge.target_id === node.id) {
-        matchingEdges.add(edge.id);
-        neighborNodes.add(edge.source_id);
-        neighborNodes.add(edge.target_id);
-      }
-    });
+      storeEdges.forEach((edge) => {
+        if (edge.source_id === node.id || edge.target_id === node.id) {
+          matchingEdges.add(edge.id);
+          neighborNodes.add(edge.source_id);
+          neighborNodes.add(edge.target_id);
+        }
+      });
 
-    setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
+      setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
+      useGraphStore.getState().setExpandedNodeId(null);
+    }, 250);
   }, [storeEdges, setActiveChain, activeMultiMode]);
+
+  const onNodeDoubleClick = useCallback(() => {
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+  }, []);
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: FlowNode) => {
     event.preventDefault();
@@ -448,6 +471,12 @@ const GraphInner = () => {
   }, []);
 
   const onPaneClick = useCallback(() => {
+    // If an edge was clicked within the last 500ms, ignore pane clicks.
+    // This prevents DOM-replacement phantom clicks from deselecting the edge during a double-click gesture.
+    if (Date.now() - ((window as any).__lastEdgeClick || 0) < 500) {
+      return;
+    }
+
     if (activeMultiMode !== 'none') {
       setActiveMultiMode('none');
       setSelectedNodeIds(new Set());
@@ -458,20 +487,15 @@ const GraphInner = () => {
       setSelectedNode(null);
       bumpCollapseAll();
       setConnectMenu(null);
-      setActiveEdgeId(null);
       setSelectedNodeIds(new Set());
       setSelectedEdgeIds(new Set());
     }
   }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll, setSelectedEdgeIds]);
 
-  const onEdgeDoubleClick = useCallback((_: any, edge: FlowEdge) => {
-    if (isEditMode) {
-      setActiveEdgeId(edge.id);
-    }
-  }, [isEditMode]);
-
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: FlowEdge) => {
     event.stopPropagation();
+    
+    useGraphStore.getState().setOpenMenuEdgeId(null);
     
     setSelectedEdgeIds((prev) => {
       const next = new Set(prev);
@@ -487,8 +511,8 @@ const GraphInner = () => {
     
     setSelectedNodeIds(new Set());
     setActiveChain(null);
-    setActiveMultiMode('none');
-  }, [setSelectedEdgeIds, setSelectedNodeIds, setActiveChain, setActiveMultiMode]);
+    setSelectedNode(null);
+  }, [setSelectedEdgeIds, setSelectedNodeIds, setActiveChain, setSelectedNode]);
 
   const onConnect = useCallback((params: Connection) => {
     if (!isEditMode) return;
@@ -646,12 +670,12 @@ const GraphInner = () => {
         onNodesChange={onNodesChangeWithSave}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd as any}
@@ -690,7 +714,7 @@ const GraphInner = () => {
           nodeStrokeColor={nodeStrokeColor}
           nodeStrokeWidth={3}
           maskColor={theme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(240, 242, 245, 0.6)'}
-          className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-md !rounded-xl border border-slate-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg !m-4"
+          className="bg-white dark:bg-[#0f172a] !rounded-xl border border-slate-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg !m-4"
         />
       </ReactFlow>
 

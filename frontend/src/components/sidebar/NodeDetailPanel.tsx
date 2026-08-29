@@ -25,7 +25,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ onAddEdge, onE
   const data: any = selectedNode.data;
 
   return (
-    <div className="w-80 border-l border-slate-200/80 dark:border-slate-800/80 bg-white/85 dark:bg-slate-900/80 backdrop-blur-md shadow-sm h-full flex flex-col shrink-0 overflow-y-auto z-20">
+    <div className="w-80 border-l border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-sm h-full flex flex-col shrink-0 overflow-y-auto z-20">
       <div className="flex items-center justify-between p-4 border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 bg-transparent z-10">
         <h2 className="font-semibold text-slate-900 dark:text-slate-100 capitalize">{selectedNode.type} Node</h2>
         <div className="flex gap-2">

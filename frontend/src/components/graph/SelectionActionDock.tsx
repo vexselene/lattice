@@ -57,7 +57,7 @@ export const SelectionActionDock: React.FC<{
 
   return (
     <div 
-      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ease-out flex items-center shadow-lg bg-white/95 dark:bg-[#111625]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 rounded-full py-1.5 px-2 gap-2 animate-in fade-in slide-in-from-bottom-4"
+      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 ease-out flex items-center shadow-lg bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-700 rounded-full py-1.5 px-2 gap-2 animate-in fade-in slide-in-from-bottom-4"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
     >
