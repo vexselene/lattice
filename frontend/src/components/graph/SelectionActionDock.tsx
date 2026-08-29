@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Trash2, X, Check } from 'lucide-react';
+import { Copy, Trash2, X, Check, Camera } from 'lucide-react';
 import { useGraphStore } from '../../stores/graphStore';
 import { useUIStore } from '../../stores/uiStore';
 import clsx from 'clsx';
@@ -7,7 +7,8 @@ import clsx from 'clsx';
 export const SelectionActionDock: React.FC<{
   selectedNodeIds: Set<string>;
   onClearSelection: () => void;
-}> = ({ selectedNodeIds, onClearSelection }) => {
+  onOpenExport?: () => void;
+}> = ({ selectedNodeIds, onClearSelection, onOpenExport }) => {
   const { nodes: storeNodes, deleteNode } = useGraphStore();
   const { isEditMode } = useUIStore();
   const [copied, setCopied] = useState(false);
@@ -72,6 +73,18 @@ export const SelectionActionDock: React.FC<{
       >
         {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-indigo-500" />}
         {copied ? 'Copied!' : 'Copy'}
+      </button>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenExport?.();
+        }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-200 text-sm font-medium"
+        title="Export Selected to Image"
+      >
+        <Camera className="w-4 h-4 text-teal-500" />
+        Export
       </button>
 
       {isEditMode && (

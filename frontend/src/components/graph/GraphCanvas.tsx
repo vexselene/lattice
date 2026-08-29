@@ -25,6 +25,7 @@ import PhoneNode from './nodes/PhoneNode';
 import GlowEdge from './edges/GlowEdge';
 import GraphControls from './GraphControls';
 import SelectionActionDock from './SelectionActionDock';
+import { ExportModal } from './ExportModal';
 import useGraphLayout from '../../hooks/useGraphLayout';
 
 const nodeTypes = {
@@ -83,6 +84,7 @@ const GraphInner = () => {
   const { getLayoutedElements } = useGraphLayout();
 
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
+  const [exportModalScope, setExportModalScope] = useState<'full' | 'selected' | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
   const connectingNodeId = useRef<string | null>(null);
 
@@ -700,11 +702,12 @@ const GraphInner = () => {
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />
-                <GraphControls 
+        <GraphControls 
           onLayout={onLayout} 
           selectedCount={selectedNodeIds.size}
           activeMultiMode={activeMultiMode}
           onToggleMultiMode={(mode) => setActiveMultiMode(prev => prev === mode ? 'none' : mode)}
+          onOpenExport={() => setExportModalScope('full')}
         />
         <MiniMap 
           position="top-right"
@@ -727,6 +730,7 @@ const GraphInner = () => {
           }
           setActiveChain(null);
         }}
+        onOpenExport={() => setExportModalScope('selected')}
       />
 
       {connectMenu && (
@@ -756,6 +760,12 @@ const GraphInner = () => {
           ))}
         </div>
       )}
+
+      <ExportModal 
+        isOpen={exportModalScope !== null} 
+        initialScope={exportModalScope || 'full'} 
+        onClose={() => setExportModalScope(null)} 
+      />
     </div>
   );
 };

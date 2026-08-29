@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, LayoutDashboard, Layers, Filter, GitFork } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, LayoutDashboard, Layers, Filter, GitFork, Download } from 'lucide-react';
 import clsx from 'clsx';
 
-export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: number; activeMultiMode?: 'none' | 'isolate' | 'chains'; onToggleMultiMode?: (mode: 'isolate' | 'chains') => void }> = ({ onLayout, selectedCount = 0, activeMultiMode = 'none', onToggleMultiMode }) => {
+export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: number; activeMultiMode?: 'none' | 'isolate' | 'chains'; onToggleMultiMode?: (mode: 'isolate' | 'chains') => void; onOpenExport?: () => void }> = ({ onLayout, selectedCount = 0, activeMultiMode = 'none', onToggleMultiMode, onOpenExport }) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -75,6 +75,10 @@ export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: num
           <Layers className="w-5 h-5" />
         </button>
       </div>
+
+      <button onClick={() => onOpenExport?.()} className={btnClass} title="Export Canvas">
+        <Download className="w-5 h-5" />
+      </button>
 
       <button onClick={() => fitView({ duration: 500 })} className={btnClass} title="Fit View">
         <Maximize className="w-5 h-5" />
