@@ -4,7 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sqlcipher3
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "lattice.db")
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lattice.db")
+DB_PATH = os.path.abspath(os.getenv("LATTICE_DB_PATH", DEFAULT_DB_PATH))
 # Using a global engine/sessionmaker might be tricky since the key is needed.
 # We will use a dynamic setup.
 
@@ -17,8 +18,13 @@ def init_db(db_key: str):
     # We URL-encode the key to handle special characters, or pass it dynamically
     # For a hex key, we can just use PRAGMA key="x'HEX'"
     # But pysqlcipher dialect supports ?key=... in the URL.
+    # Ensure the parent directory exists
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    
     encoded_key = urllib.parse.quote_plus(db_key)
     # The password goes in the auth part of the URL: sqlite+pysqlcipher://:password@/path
+    # Note: On Unix, absolute path requires 4 slashes total, e.g. sqlite+pysqlcipher://:password@//absolute/path
+    # We prefix with a slash for absolute paths since DB_PATH is absolute.
     db_url = f"sqlite+pysqlcipher://:{encoded_key}@/{DB_PATH}"
     
     _engine = create_engine(db_url, module=sqlcipher3)

@@ -11,9 +11,18 @@ from app.models.base import Base
 
 app = FastAPI(title="Lattice API")
 
+cors_env = os.getenv("CORS_ORIGINS")
+if cors_env:
+    origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+else:
+    origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
