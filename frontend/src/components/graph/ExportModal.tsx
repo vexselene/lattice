@@ -20,6 +20,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, initi
   const [mode, setMode] = useState<'isolated' | 'dimmed'>('isolated');
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [includeBackground, setIncludeBackground] = useState(true);
+  const [keepHighlightRings, setKeepHighlightRings] = useState(false);
 
   // Sync scope when opened with a new initialScope
   useEffect(() => {
@@ -41,6 +42,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, initi
       mode,
       showEdgeLabels,
       includeBackground,
+      keepHighlightRings,
       themeBgColor
     });
     onClose();
@@ -138,6 +140,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, initi
                 <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform shadow-sm", includeBackground ? "translate-x-4" : "translate-x-0")} />
               </div>
               <input type="checkbox" className="hidden" checked={includeBackground} onChange={(e) => setIncludeBackground(e.target.checked)} />
+            </label>
+
+            <label className="flex items-center justify-between cursor-pointer group">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Keep Highlight Rings</span>
+              <div className={clsx("w-10 h-6 rounded-full transition-colors flex items-center px-1", keepHighlightRings ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")}>
+                <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform shadow-sm", keepHighlightRings ? "translate-x-4" : "translate-x-0")} />
+              </div>
+              <input type="checkbox" className="hidden" checked={keepHighlightRings} onChange={(e) => setKeepHighlightRings(e.target.checked)} />
             </label>
           </div>
         </div>

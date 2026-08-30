@@ -24,6 +24,12 @@ interface GraphState {
   setSelectedNodeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setSelectedEdgeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setActiveMultiMode: (mode: 'none' | 'isolate' | 'chains' | ((prev: 'none' | 'isolate' | 'chains') => 'none' | 'isolate' | 'chains')) => void;
+  isExporting: boolean;
+  exportScope: 'full' | 'selected';
+  exportMode: 'isolated' | 'dimmed';
+  exportKeepHighlightRings: boolean;
+  startExport: (config: { scope: 'full' | 'selected'; mode: 'isolated' | 'dimmed'; keepHighlightRings?: boolean }) => void;
+  endExport: () => void;
   addTempNode: (node: GraphNode) => void;
   removeTempNode: (nodeId: string) => void;
   bumpCollapseAll: () => void;
@@ -52,6 +58,22 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   setActiveMultiMode: (mode) => set((state) => ({
     activeMultiMode: typeof mode === 'function' ? mode(state.activeMultiMode) : mode
   })),
+  isExporting: false,
+  exportScope: 'full',
+  exportMode: 'isolated',
+  exportKeepHighlightRings: false,
+  startExport: ({ scope, mode, keepHighlightRings = false }) => set({
+    isExporting: true,
+    exportScope: scope,
+    exportMode: mode,
+    exportKeepHighlightRings: keepHighlightRings
+  }),
+  endExport: () => set({
+    isExporting: false,
+    exportScope: 'full',
+    exportMode: 'isolated',
+    exportKeepHighlightRings: false
+  }),
   collapseAllSignal: 0,
   isLoading: false,
   error: null,

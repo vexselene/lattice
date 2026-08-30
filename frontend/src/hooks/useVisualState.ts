@@ -24,6 +24,10 @@ export function useNodeVisualState(nodeId: string, nodeType: string = 'default')
   const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const selectedEdgeIds = useGraphStore((s) => s.selectedEdgeIds);
   const activeMultiMode = useGraphStore((s) => s.activeMultiMode);
+  const isExporting = useGraphStore((s) => s.isExporting);
+  const exportScope = useGraphStore((s) => s.exportScope);
+  const exportMode = useGraphStore((s) => s.exportMode);
+  const exportKeepHighlightRings = useGraphStore((s) => s.exportKeepHighlightRings);
   const storeEdges = useGraphStore((s) => s.edges);
   const storeNodes = useGraphStore((s) => s.nodes);
 
@@ -73,6 +77,23 @@ export function useNodeVisualState(nodeId: string, nodeType: string = 'default')
     }
   }
 
+  // Canvas Export State Overrides
+  if (isExporting) {
+    if (exportScope === 'selected') {
+      if (exportMode === 'isolated') {
+        if (!selectedNodeIds.has(nodeId)) {
+          isVisible = false;
+        }
+      } else if (exportMode === 'dimmed') {
+        if (!selectedNodeIds.has(nodeId)) {
+          isDimmed = true;
+        }
+      }
+    }
+  }
+
+  const effectiveShowRing = isSelected && (!isExporting || exportKeepHighlightRings);
+
   const opacity = !isVisible 
     ? GRAPH_STYLE.opacity.isolatedHidden 
     : (isDimmed ? GRAPH_STYLE.opacity.dimmed : GRAPH_STYLE.opacity.normal);
@@ -81,7 +102,7 @@ export function useNodeVisualState(nodeId: string, nodeType: string = 'default')
     ? `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`
     : `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`;
 
-  const ringClass = isSelected 
+  const ringClass = effectiveShowRing 
     ? (RING_CLASSES[nodeType] || RING_CLASSES.default) 
     : '';
 
@@ -114,6 +135,10 @@ export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVis
   const selectedEdgeIds = useGraphStore((s) => s.selectedEdgeIds);
   const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const activeMultiMode = useGraphStore((s) => s.activeMultiMode);
+  const isExporting = useGraphStore((s) => s.isExporting);
+  const exportScope = useGraphStore((s) => s.exportScope);
+  const exportMode = useGraphStore((s) => s.exportMode);
+  const exportKeepHighlightRings = useGraphStore((s) => s.exportKeepHighlightRings);
   const theme = useUIStore((s) => s.theme);
 
   const edge = storeEdges.find((e) => e.id === edgeId);
@@ -158,23 +183,46 @@ export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVis
     }
   }
 
+  // Canvas Export State Overrides
+  if (isExporting && edge) {
+    const isSelectedEdge = selectedNodeIds.has(edge.source_id) && selectedNodeIds.has(edge.target_id);
+    if (exportScope === 'selected') {
+      if (exportMode === 'isolated') {
+        if (!isSelectedEdge) {
+          isVisible = false;
+        }
+      } else if (exportMode === 'dimmed') {
+        if (!isSelectedEdge) {
+          isDimmed = true;
+        }
+      }
+    }
+    if (!exportKeepHighlightRings) {
+      isHighlighted = false;
+    }
+  }
+
   const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
   
+  const effectiveSelectedOrHighlighted = (isSelected || isHighlighted) && (!isExporting || exportKeepHighlightRings);
+
   const stroke = isDimmed 
     ? GRAPH_STYLE.colors.edge.dimmed 
-    : (isSelected || isHovered || isHighlighted ? GRAPH_STYLE.colors.edge.hover : defaultColor);
+    : (effectiveSelectedOrHighlighted || isHovered 
+        ? GRAPH_STYLE.colors.edge.hover 
+        : defaultColor);
 
-  const strokeWidth = (isSelected || isHighlighted)
+  const strokeWidth = effectiveSelectedOrHighlighted
     ? GRAPH_STYLE.strokeWidth.highlighted
     : (isHovered ? GRAPH_STYLE.strokeWidth.hover : GRAPH_STYLE.strokeWidth.base);
 
   const filter = isDimmed
     ? `blur(${GRAPH_STYLE.blur.dimmed})`
-    : (isSelected || isHighlighted
+    : (effectiveSelectedOrHighlighted
         ? GRAPH_STYLE.glow.highlighted
         : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none'));
 
-  const strokeDasharray = isHighlighted ? '5 5' : undefined;
+  const strokeDasharray = (isHighlighted && (!isExporting || exportKeepHighlightRings)) ? '5 5' : undefined;
   const hitboxWidth = GRAPH_STYLE.hitbox.width;
   const opacity = !isVisible 
     ? GRAPH_STYLE.opacity.isolatedHidden 
