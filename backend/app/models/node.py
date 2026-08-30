@@ -1,8 +1,8 @@
 import datetime
 import uuid
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import Optional
+from typing import Optional, List, Any
 
 from .base import Base
 
@@ -17,6 +17,7 @@ class EmailNode(Base):
     provider: Mapped[Optional[str]] = mapped_column(String)
     password_encrypted: Mapped[Optional[str]] = mapped_column(String)
     notes: Mapped[Optional[str]] = mapped_column(String)
+    tags: Mapped[Optional[Any]] = mapped_column(JSON)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC), nullable=False
     )
@@ -32,6 +33,7 @@ class PhoneNode(Base):
     number: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     carrier: Mapped[Optional[str]] = mapped_column(String)
     notes: Mapped[Optional[str]] = mapped_column(String)
+    tags: Mapped[Optional[Any]] = mapped_column(JSON)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC), nullable=False
     )
@@ -49,6 +51,7 @@ class ServiceNode(Base):
     category: Mapped[Optional[str]] = mapped_column(String)
     icon_url: Mapped[Optional[str]] = mapped_column(String)
     notes: Mapped[Optional[str]] = mapped_column(String)
+    tags: Mapped[Optional[Any]] = mapped_column(JSON)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC), nullable=False
     )
@@ -70,6 +73,7 @@ class AccountNode(Base):
         String, ForeignKey("emails.id", ondelete="SET NULL"), index=True
     )
     notes: Mapped[Optional[str]] = mapped_column(String)
+    tags: Mapped[Optional[Any]] = mapped_column(JSON)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC), nullable=False
     )

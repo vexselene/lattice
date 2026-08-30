@@ -2,7 +2,7 @@ import CopyFieldButton from '../../shared/CopyFieldButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { PhoneNode as PhoneNodeType } from '../../../types/graph';
-import { Smartphone, Edit2, PanelRight, Trash2 } from 'lucide-react';
+import { Smartphone, Edit2, PanelRight, Trash2, X } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
@@ -186,13 +186,34 @@ export const PhoneNode: React.FC<{ data: PhoneNodeType; id: string }> = ({ data,
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1 group">
+            <>
+              <div className="flex flex-col gap-1 group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Carrier</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-700 dark:text-slate-300 break-all">{data.carrier || '—'}</span>
                   {!!data.carrier && <CopyFieldButton value={data.carrier} />}
                 </div>
               </div>
+              
+              {data.tags && data.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  {data.tags.map(tag => (
+                    <span key={tag} className={`group/tag relative pl-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] uppercase tracking-wider font-bold rounded-md pr-1.5 transition-all duration-200 ease-out ${globalEditMode ? 'hover:pr-6' : ''}`}>
+                      {tag}
+                      {globalEditMode && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); useGraphStore.getState().removeTag(data.id, tag); }}
+                          className="absolute top-1/2 -translate-y-1/2 right-0.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all opacity-0 group-hover/tag:opacity-100 flex items-center justify-center p-0.5 rounded-full z-10"
+                          title="Remove Tag"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

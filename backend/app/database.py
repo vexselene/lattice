@@ -32,6 +32,17 @@ def init_db(db_key: str):
     
     from app.models.base import Base
     Base.metadata.create_all(bind=_engine)
+    
+    # Auto-migration for tags
+    from sqlalchemy import text
+    with _engine.connect() as conn:
+        for table in ["emails", "phones", "services", "accounts"]:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN tags JSON"))
+                conn.commit()
+            except Exception:
+                pass
+
 
 def get_db():
     if _SessionLocal is None:

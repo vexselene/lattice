@@ -4,6 +4,7 @@ export type EdgeRelation = 'registered_with' | 'recovery_for' | 'uses_username' 
 export interface BaseNode {
   id: string;
   notes?: string | null;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }

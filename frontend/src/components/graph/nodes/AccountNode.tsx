@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { AccountNode as AccountNodeType } from '../../../types/graph';
-import { User, Edit2, PanelRight, Trash2 } from 'lucide-react';
+import { User, Edit2, PanelRight, Trash2, X } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import CopyFieldButton from '../../shared/CopyFieldButton';
@@ -157,6 +157,7 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
           className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[120px] max-w-[220px] text-xs"
           onClick={(e) => e.stopPropagation()}
         >
+
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">
             <span className="px-2 py-0.5 rounded-full bg-purple-100/80 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 text-[10px] font-bold uppercase tracking-widest">
               Account
@@ -204,6 +205,25 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
                 <div className="mt-1">
                   <span className="text-[11px] font-medium leading-tight text-slate-500 mb-1 block">Password</span>
                   <PasswordField nodeType="account" nodeId={data.id} />
+                </div>
+              )}
+
+              {data.tags && data.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  {data.tags.map(tag => (
+                    <span key={tag} className={`group/tag relative pl-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] uppercase tracking-wider font-bold rounded-md pr-1.5 transition-all duration-200 ease-out ${globalEditMode ? 'hover:pr-6' : ''}`}>
+                      {tag}
+                      {globalEditMode && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); useGraphStore.getState().removeTag(data.id, tag); }}
+                          className="absolute top-1/2 -translate-y-1/2 right-0.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all opacity-0 group-hover/tag:opacity-100 flex items-center justify-center p-0.5 rounded-full z-10"
+                          title="Remove Tag"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
                 </div>
               )}
             </>

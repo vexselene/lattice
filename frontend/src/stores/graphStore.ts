@@ -23,6 +23,8 @@ interface GraphState {
   bumpCollapseAll: () => void;
   openMenuEdgeId: string | null;
   setOpenMenuEdgeId: (id: string | null) => void;
+  batchAddTag: (nodeIds: string[], tag: string) => void;
+  removeTag: (nodeId: string, tag: string) => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
@@ -43,6 +45,78 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   removeTempNode: (nodeId) => set((state) => ({ nodes: state.nodes.filter(n => n.data.id !== nodeId) })),
   bumpCollapseAll: () => set((state) => ({ collapseAllSignal: state.collapseAllSignal + 1, openMenuEdgeId: null, expandedNodeId: null })),
   
+  batchAddTag: async (nodeIds, tag) => {
+    const normalized = tag.trim().toLowerCase();
+    if (!normalized) return;
+    
+    // Perform updates
+    let updatedNodes: GraphNode[] = [];
+    set((state) => {
+      let changed = false;
+      const newNodes = state.nodes.map(n => {
+        if (nodeIds.includes(n.data.id)) {
+          const currentTags = n.data.tags || [];
+          if (!currentTags.includes(normalized)) {
+            changed = true;
+            const newNode = {
+              ...n,
+              data: {
+                ...n.data,
+                tags: [...currentTags, normalized]
+              }
+            };
+            updatedNodes.push(newNode);
+            return newNode;
+          }
+        }
+        return n;
+      });
+      return changed ? { nodes: newNodes } : {};
+    });
+
+    // Save to backend
+    if (updatedNodes.length > 0) {
+      try {
+        const { updateNode } = await import('../api/nodes');
+        for (const n of updatedNodes) {
+          await updateNode(n.type, n.data.id, { tags: n.data.tags });
+        }
+      } catch (err) {
+        console.error('Failed to save tags to backend', err);
+      }
+    }
+  },
+
+  removeTag: async (nodeId, tag) => {
+    let targetNode: GraphNode | null = null;
+    set((state) => {
+      const newNodes = state.nodes.map(n => {
+        if (n.data.id === nodeId && n.data.tags?.includes(tag)) {
+          targetNode = {
+            ...n,
+            data: {
+              ...n.data,
+              tags: n.data.tags.filter((t: string) => t !== tag)
+            }
+          };
+          return targetNode;
+        }
+        return n;
+      });
+      return targetNode ? { nodes: newNodes } : {};
+    });
+
+    if (targetNode) {
+      try {
+        const { updateNode } = await import('../api/nodes');
+        const node = targetNode as GraphNode;
+        await updateNode(node.type, node.data.id, { tags: node.data.tags });
+      } catch (err) {
+        console.error('Failed to remove tag from backend', err);
+      }
+    }
+  },
+
   fetchGraph: async () => {
     set({ isLoading: true, error: null });
     try {

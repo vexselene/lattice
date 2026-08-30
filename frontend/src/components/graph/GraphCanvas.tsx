@@ -77,7 +77,7 @@ const GraphInner = () => {
     expandedNodeId
   } = useGraphStore();
   
-  const { theme, searchQuery, typeFilters, isEditMode } = useUIStore();
+  const { theme, searchQuery, typeFilters, tagFilters, isEditMode } = useUIStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -190,12 +190,28 @@ const GraphInner = () => {
         isHidden = true;
       }
 
+      if (!isHidden && tagFilters.length > 0) {
+        const tags = n.data.tags || [];
+        if (!tagFilters.some((f: string) => tags.includes(f))) {
+          isHidden = true;
+        }
+      }
+
       if (!isHidden && searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
-        const d = n.data as any;
-        const label = (d.address || d.username || d.name || d.number || '').toLowerCase();
-        if (!label.includes(q)) {
-          isHidden = true;
+        
+        if (q.startsWith('tags:')) {
+          const searchTag = q.slice(5).trim();
+          const tags = n.data.tags || [];
+          if (!tags.some((t: string) => t.toLowerCase().includes(searchTag))) {
+            isHidden = true;
+          }
+        } else {
+          const d = n.data as any;
+          const label = (d.address || d.username || d.name || d.number || '').toLowerCase();
+          if (!label.includes(q)) {
+            isHidden = true;
+          }
         }
       }
       
@@ -307,7 +323,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, tagFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
