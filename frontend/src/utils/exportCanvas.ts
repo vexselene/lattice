@@ -1,5 +1,6 @@
 import { getNodesBounds, ReactFlowInstance } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
+import { GRAPH_STYLE } from '../config/graphStyleConfig';
 
 export interface ExportCanvasOptions {
   reactFlowInstance: ReactFlowInstance;
@@ -48,7 +49,7 @@ export const exportCanvas = async ({
   }
 
   const bounds = getNodesBounds(exportNodes);
-  const padding = 60;
+  const padding = GRAPH_STYLE.export.paddingPx;
   const exportWidth = bounds.width + padding * 2;
   const exportHeight = bounds.height + padding * 2;
 

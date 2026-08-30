@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { EdgeRelation } from '../../../types/graph';
+import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
 
 // Global map to preserve click timestamps perfectly even if React remounts the edge component
 const edgeClickTimes = new Map<string, number>();
@@ -42,12 +43,18 @@ export const GlowEdge: React.FC<EdgeProps> = ({
   };
   const relation = (data as any)?.relation || 'registered_with';
 
-  const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
+  const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
   
-  const strokeWidth = selected ? 2.5 : (isHovered ? 2.0 : 1.25);
-  const strokeColor = isDimmed ? '#47556998' : (selected || isHovered ? '#818cf8' : defaultColor);
-  const filter = selected ? 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.5))' : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none');
-  const opacity = isDimmed ? 0.2 : 1;
+  const strokeWidth = selected 
+    ? GRAPH_STYLE.strokeWidth.highlighted 
+    : (isHovered ? GRAPH_STYLE.strokeWidth.hover : GRAPH_STYLE.strokeWidth.base);
+  const strokeColor = isDimmed 
+    ? GRAPH_STYLE.colors.edge.dimmed 
+    : (selected || isHovered ? GRAPH_STYLE.colors.edge.hover : defaultColor);
+  const filter = selected 
+    ? GRAPH_STYLE.glow.highlighted 
+    : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none');
+  const opacity = isDimmed ? GRAPH_STYLE.opacity.dimmed : GRAPH_STYLE.opacity.normal;
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,8 +83,8 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     // Globally record the edge click to prevent phantom pane clicks
     (window as any).__lastEdgeClick = now;
     
-    // Window of 450ms for reliable trackpad double taps
-    if (now - lastClickTime < 450) {
+    // Window for reliable trackpad double taps
+    if (now - lastClickTime < GRAPH_STYLE.timing.doubleTapThresholdMs) {
       e.stopPropagation();
       e.preventDefault();
       setOpenMenuEdgeId(isMenuOpen ? null : id);
@@ -90,7 +97,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
 
   const handleClickCapture = (e: React.MouseEvent) => {
     // Swallow the native click event if we just toggled the menu via pointerdown
-    if (Date.now() - ((window as any).__lastMenuToggle || 0) < 500) {
+    if (Date.now() - ((window as any).__lastMenuToggle || 0) < GRAPH_STYLE.timing.suppressWindowMs) {
       e.stopPropagation();
       e.preventDefault();
     }
@@ -107,7 +114,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
           ...style,
           strokeWidth,
           stroke: strokeColor,
-          filter: isDimmed ? 'blur(0.75px)' : filter,
+          filter: isDimmed ? `blur(${GRAPH_STYLE.blur.dimmed})` : filter,
           opacity,
           pointerEvents: 'none',
           transition: 'stroke 300ms ease-out, stroke-opacity 300ms ease-out, stroke-width 300ms ease-out, opacity 300ms ease-out, filter 300ms ease-out',
@@ -118,7 +125,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={24}
+        strokeWidth={GRAPH_STYLE.hitbox.width}
         onPointerDown={handlePointerDown}
         onClickCapture={handleClickCapture}
         vectorEffect="non-scaling-stroke"
@@ -139,7 +146,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
           style={{
             pointerEvents: 'none',
             opacity: 1,
-            filter: 'drop-shadow(0 0 5px rgba(129, 140, 248, 0.8))',
+            filter: GRAPH_STYLE.glow.highlighted,
             animation: 'dashdraw 0.5s linear infinite'
           }}
         />

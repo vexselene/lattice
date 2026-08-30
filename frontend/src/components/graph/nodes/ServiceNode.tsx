@@ -6,6 +6,7 @@ import { Server, Edit2, PanelRight, Trash2, X } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
+import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
 
 export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ data, id: _id }) => {
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
@@ -116,9 +117,16 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
 
   return (
     <div
+      style={isDimmed ? {
+        opacity: GRAPH_STYLE.opacity.dimmed,
+        filter: `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`,
+      } : {
+        opacity: GRAPH_STYLE.opacity.normal,
+        filter: `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`,
+      }}
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
-        isDimmed ? `opacity-30 blur-[0.5px] grayscale-[30%] ${isModalOpen ? 'pointer-events-none' : 'cursor-pointer'}` : 'opacity-100 grayscale-0'
+        isDimmed && isModalOpen ? 'pointer-events-none' : 'cursor-pointer'
       )}
       onDoubleClick={(e) => {
         e.stopPropagation();

@@ -27,6 +27,7 @@ import GraphControls from './GraphControls';
 import SelectionActionDock from './SelectionActionDock';
 import { ExportModal } from './ExportModal';
 import useGraphLayout from '../../hooks/useGraphLayout';
+import { GRAPH_STYLE } from '../../config/graphStyleConfig';
 
 const nodeTypes = {
   email: EmailNode,
@@ -274,8 +275,8 @@ const GraphInner = () => {
       }
 
       
-      const defaultColor = theme === 'dark' ? '#64748b' : '#475569';
-      const highlightColor = '#818cf8';
+      const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
+      const highlightColor = GRAPH_STYLE.colors.edge.hover;
 
 
       return {
@@ -294,7 +295,7 @@ const GraphInner = () => {
           width: isEdgeHighlighted ? 14 : 12,
           height: isEdgeHighlighted ? 14 : 12,
           strokeWidth: isEdgeHighlighted ? 1.75 : 1.5,
-          color: isEdgeDimmed ? '#475569' : (isEdgeHighlighted ? highlightColor : defaultColor),
+          color: isEdgeDimmed ? GRAPH_STYLE.colors.edge.baseLight : (isEdgeHighlighted ? highlightColor : defaultColor),
         }
       };
     });
@@ -316,7 +317,7 @@ const GraphInner = () => {
           targetHandle: 'target-left',
           type: 'default',
           animated: true,
-          style: { strokeDasharray: '4 4', stroke: '#818cf8', strokeWidth: 2 },
+          style: { strokeDasharray: '4 4', stroke: GRAPH_STYLE.colors.edge.hover, strokeWidth: 2 },
         } as FlowEdge);
       }
     }
@@ -465,7 +466,7 @@ const GraphInner = () => {
 
       setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
       useGraphStore.getState().setExpandedNodeId(null);
-    }, 250);
+    }, GRAPH_STYLE.timing.clickDelayMs);
   }, [storeEdges, setActiveChain, activeMultiMode]);
 
   const onNodeDoubleClick = useCallback(() => {
