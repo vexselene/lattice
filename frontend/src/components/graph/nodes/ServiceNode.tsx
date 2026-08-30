@@ -6,7 +6,7 @@ import { Server, Edit2, PanelRight, Trash2, X } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
-import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
+import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ data, id: _id }) => {
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
@@ -23,9 +23,8 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
   const isConnecting = connectionInProgress;
 
 
-  const isDimmed = (data as any).isDimmed === true;
+  const { opacity, filter, ringClass, isDimmed, isVisible } = useNodeVisualState(data.id, 'service');
   const isModalOpen = (data as any).isModalOpen === true;
-  const isSelected = Boolean((data as any).isSelected);
 
   const prevCollapseSignal = useRef(collapseAllSignal);
   useEffect(() => {
@@ -115,14 +114,13 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
     }
   };
 
+  if (!isVisible) return null;
+
   return (
     <div
-      style={isDimmed ? {
-        opacity: GRAPH_STYLE.opacity.dimmed,
-        filter: `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`,
-      } : {
-        opacity: GRAPH_STYLE.opacity.normal,
-        filter: `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`,
+      style={{
+        opacity,
+        filter,
       }}
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
@@ -142,7 +140,7 @@ export const ServiceNode: React.FC<{ data: ServiceNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-emerald-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 

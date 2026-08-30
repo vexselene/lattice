@@ -62,10 +62,6 @@ const nodeStrokeColor = (node: FlowNode) => {
 
 
 const GraphInner = () => {
-
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [activeMultiMode, setActiveMultiMode] = useState<'none' | 'isolate' | 'chains'>('none');
-
   const { 
     nodes: storeNodes, 
     edges: storeEdges, 
@@ -75,7 +71,13 @@ const GraphInner = () => {
     activeChain, 
     bumpCollapseAll,
     setSelectedNode,
-    expandedNodeId
+    expandedNodeId,
+    selectedNodeIds,
+    setSelectedNodeIds,
+    selectedEdgeIds,
+    setSelectedEdgeIds,
+    activeMultiMode,
+    setActiveMultiMode
   } = useGraphStore();
   
   const { theme, searchQuery, typeFilters, tagFilters, isEditMode } = useUIStore();
@@ -86,7 +88,6 @@ const GraphInner = () => {
 
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
   const [exportModalScope, setExportModalScope] = useState<'full' | 'selected' | null>(null);
-  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
   const connectingNodeId = useRef<string | null>(null);
 
   const [proximityTarget, setProximityTarget] = useState<string | null>(null);
@@ -226,15 +227,6 @@ const GraphInner = () => {
         visibleNodeIds.add(n.data.id);
       }
 
-      let isDimmed = false;
-      if (activeMultiMode === 'chains' && multiChains) {
-        if (!multiChains.nodeIds.has(n.data.id as string)) {
-          isDimmed = true;
-        }
-      } else {
-        isDimmed = effectiveActiveChain !== null && !effectiveActiveChain.nodeIds.has(n.data.id as string) && !(n.data as any).isEditing;
-      }
-      
       const isModalOpen = expandedNodeId !== null;
       const isSelected = selectedNodeIds.has(n.data.id as string);
 
@@ -245,9 +237,7 @@ const GraphInner = () => {
         zIndex: expandedNodeId === n.data.id ? 1000 : (isSelected ? 50 : 1),
         data: { 
           ...(n.data as any), 
-          isDimmed,
           isModalOpen,
-          isSelected
         },
         position: savedPositions[n.data.id] || { x: 0, y: 0 },
         hidden: isHidden,
@@ -289,7 +279,7 @@ const GraphInner = () => {
         hidden: isHidden,
         selected: selectedEdgeIds.has(e.id),
         animated: isEdgeHighlighted || (activeMultiMode === 'chains' && isEdgeHighlighted),
-        data: { relation: e.relation, isDimmed: isEdgeDimmed, isModalOpen: expandedNodeId !== null },
+        data: { relation: e.relation, isModalOpen: expandedNodeId !== null },
         markerEnd: {
           type: MarkerType.Arrow,
           width: isEdgeHighlighted ? 14 : 12,

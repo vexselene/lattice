@@ -7,7 +7,7 @@ import { useUIStore } from '../../../stores/uiStore';
 import CopyFieldButton from '../../shared/CopyFieldButton';
 import PasswordField from '../../sidebar/PasswordField';
 import clsx from 'clsx';
-import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
+import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ data, id: _id }) => {
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
@@ -23,10 +23,8 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
   const connectionInProgress = useStore((s) => s.connection.inProgress);
   const isConnecting = connectionInProgress;
 
-
-  const isDimmed = (data as any).isDimmed === true;
+  const { opacity, filter, ringClass, isDimmed, isVisible } = useNodeVisualState(data.id, 'account');
   const isModalOpen = (data as any).isModalOpen === true;
-  const isSelected = Boolean((data as any).isSelected);
 
   const prevCollapseSignal = useRef(collapseAllSignal);
   useEffect(() => {
@@ -116,14 +114,13 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
     }
   };
 
+  if (!isVisible) return null;
+
   return (
     <div
-      style={isDimmed ? {
-        opacity: GRAPH_STYLE.opacity.dimmed,
-        filter: `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`,
-      } : {
-        opacity: GRAPH_STYLE.opacity.normal,
-        filter: `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`,
+      style={{
+        opacity,
+        filter,
       }}
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
@@ -143,7 +140,8 @@ export const AccountNode: React.FC<{ data: AccountNodeType; id: string }> = ({ d
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-purple-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      {/* Pill row — handles are anchored HERE so they never shift */}
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 

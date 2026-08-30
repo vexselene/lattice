@@ -7,7 +7,7 @@ import { useUIStore } from '../../../stores/uiStore';
 import CopyFieldButton from '../../shared/CopyFieldButton';
 import PasswordField from '../../sidebar/PasswordField';
 import clsx from 'clsx';
-import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
+import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data, id: _id }) => {
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
@@ -23,11 +23,8 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
   const connectionInProgress = useStore((s) => s.connection.inProgress);
   const isConnecting = connectionInProgress;
 
-
-  // Chain dimming is now passed as prop via GraphCanvas
-  const isDimmed = (data as any).isDimmed === true;
+  const { opacity, filter, ringClass, isDimmed, isVisible } = useNodeVisualState(data.id, 'email');
   const isModalOpen = (data as any).isModalOpen === true;
-  const isSelected = Boolean((data as any).isSelected);
 
   // Collapse when pane is clicked
   const prevCollapseSignal = useRef(collapseAllSignal);
@@ -119,14 +116,13 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
     }
   };
 
+  if (!isVisible) return null;
+
   return (
     <div
-      style={isDimmed ? {
-        opacity: GRAPH_STYLE.opacity.dimmed,
-        filter: `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`,
-      } : {
-        opacity: GRAPH_STYLE.opacity.normal,
-        filter: `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`,
+      style={{
+        opacity,
+        filter,
       }}
       className={clsx(
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
@@ -147,7 +143,7 @@ export const EmailNode: React.FC<{ data: EmailNodeType; id: string }> = ({ data,
       }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-indigo-50 text-indigo-950 dark:bg-indigo-950 dark:text-indigo-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(99,102,241,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", isSelected && "ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900")}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-indigo-50 text-indigo-950 dark:bg-indigo-950 dark:text-indigo-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(99,102,241,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
         {/* Handles inside the pill — they use absolute centering by React Flow */}
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />

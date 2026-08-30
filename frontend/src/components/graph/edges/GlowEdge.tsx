@@ -5,6 +5,7 @@ import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { EdgeRelation } from '../../../types/graph';
 import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
+import { useEdgeVisualState } from '../../../hooks/useVisualState';
 
 // Global map to preserve click timestamps perfectly even if React remounts the edge component
 const edgeClickTimes = new Map<string, number>();
@@ -33,28 +34,16 @@ export const GlowEdge: React.FC<EdgeProps> = ({
   });
 
   const { deleteEdge, setOpenMenuEdgeId, openMenuEdgeId } = useGraphStore();
-  const { theme, isEditMode } = useUIStore();
+  const { isEditMode } = useUIStore();
   const [isHovered, setIsHovered] = useState(false);
   const isMenuOpen = openMenuEdgeId === id && selected;
 
-  const isDimmed = (data as any)?.isDimmed === true;
+  const visualState = useEdgeVisualState(id, isHovered);
+
   const formatRelation = (r: string) => {
     return r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
   const relation = (data as any)?.relation || 'registered_with';
-
-  const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
-  
-  const strokeWidth = selected 
-    ? GRAPH_STYLE.strokeWidth.highlighted 
-    : (isHovered ? GRAPH_STYLE.strokeWidth.hover : GRAPH_STYLE.strokeWidth.base);
-  const strokeColor = isDimmed 
-    ? GRAPH_STYLE.colors.edge.dimmed 
-    : (selected || isHovered ? GRAPH_STYLE.colors.edge.hover : defaultColor);
-  const filter = selected 
-    ? GRAPH_STYLE.glow.highlighted 
-    : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none');
-  const opacity = isDimmed ? GRAPH_STYLE.opacity.dimmed : GRAPH_STYLE.opacity.normal;
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -103,6 +92,8 @@ export const GlowEdge: React.FC<EdgeProps> = ({
     }
   };
 
+  if (!visualState.isVisible) return null;
+
   return (
     <>
       <BaseEdge
@@ -112,10 +103,10 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         interactionWidth={0}
         style={{
           ...style,
-          strokeWidth,
-          stroke: strokeColor,
-          filter: isDimmed ? `blur(${GRAPH_STYLE.blur.dimmed})` : filter,
-          opacity,
+          strokeWidth: visualState.strokeWidth,
+          stroke: visualState.stroke,
+          filter: visualState.filter,
+          opacity: visualState.opacity,
           pointerEvents: 'none',
           transition: 'stroke 300ms ease-out, stroke-opacity 300ms ease-out, stroke-width 300ms ease-out, opacity 300ms ease-out, filter 300ms ease-out',
         }}
@@ -125,7 +116,7 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={GRAPH_STYLE.hitbox.width}
+        strokeWidth={visualState.hitboxWidth}
         onPointerDown={handlePointerDown}
         onClickCapture={handleClickCapture}
         vectorEffect="non-scaling-stroke"
@@ -135,13 +126,13 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         style={{ pointerEvents: 'all' }}
       />
       
-      {animated && (
+      {(animated || visualState.isHighlighted) && (
         <path
           d={edgePath}
           fill="none"
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-          strokeDasharray="5 5"
+          stroke={visualState.stroke}
+          strokeWidth={visualState.strokeWidth}
+          strokeDasharray={visualState.strokeDasharray || '5 5'}
           className="react-flow__edge-path"
           style={{
             pointerEvents: 'none',

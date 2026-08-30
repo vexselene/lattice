@@ -18,6 +18,12 @@ interface GraphState {
   expandedNodeId: string | null;
   setExpandedNodeId: (id: string | null) => void;
   setActiveChain: (chain: { nodeIds: Set<string>; edgeIds: Set<string> } | null) => void;
+  selectedNodeIds: Set<string>;
+  selectedEdgeIds: Set<string>;
+  activeMultiMode: 'none' | 'isolate' | 'chains';
+  setSelectedNodeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setSelectedEdgeIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setActiveMultiMode: (mode: 'none' | 'isolate' | 'chains' | ((prev: 'none' | 'isolate' | 'chains') => 'none' | 'isolate' | 'chains')) => void;
   addTempNode: (node: GraphNode) => void;
   removeTempNode: (nodeId: string) => void;
   bumpCollapseAll: () => void;
@@ -34,6 +40,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   activeChain: null,
   expandedNodeId: null,
   setExpandedNodeId: (id) => set({ expandedNodeId: id }),
+  selectedNodeIds: new Set<string>(),
+  selectedEdgeIds: new Set<string>(),
+  activeMultiMode: 'none',
+  setSelectedNodeIds: (ids) => set((state) => ({
+    selectedNodeIds: typeof ids === 'function' ? ids(state.selectedNodeIds) : ids
+  })),
+  setSelectedEdgeIds: (ids) => set((state) => ({
+    selectedEdgeIds: typeof ids === 'function' ? ids(state.selectedEdgeIds) : ids
+  })),
+  setActiveMultiMode: (mode) => set((state) => ({
+    activeMultiMode: typeof mode === 'function' ? mode(state.activeMultiMode) : mode
+  })),
   collapseAllSignal: 0,
   isLoading: false,
   error: null,
