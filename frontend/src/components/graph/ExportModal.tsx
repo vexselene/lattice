@@ -1,164 +1,391 @@
-import React, { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, Download } from 'lucide-react';
-import clsx from 'clsx';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { exportCanvas } from '../../utils/exportCanvas';
+import { Download, X, Image as ImageIcon, Eye } from 'lucide-react';
+import clsx from 'clsx';
+import { graphToSvgString } from '../../lib/exportRenderer';
+import { ExportMode } from '../../lib/exportSelection';
+import { useUIStore } from '../../stores/uiStore';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialScope?: 'full' | 'selected';
+  initialScope?: 'all' | 'dimmed' | 'isolated' | 'full' | 'selected';
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, initialScope = 'full' }) => {
-  const reactFlowInstance = useReactFlow();
-  
+export const ExportModal: React.FC<ExportModalProps> = ({
+  isOpen,
+  onClose,
+  initialScope = 'all',
+}) => {
+  const { getNodes, getEdges } = useReactFlow();
+  const theme = useUIStore((s) => s.theme);
+
   const [fileName, setFileName] = useState('lattice-export');
   const [format, setFormat] = useState<'png' | 'svg'>('png');
   const [scale, setScale] = useState<number>(2);
-  const [scope, setScope] = useState<'full' | 'selected'>(initialScope);
-  const [mode, setMode] = useState<'isolated' | 'dimmed'>('isolated');
+  const [mode, setMode] = useState<ExportMode>('all');
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [includeBackground, setIncludeBackground] = useState(true);
   const [keepHighlightRings, setKeepHighlightRings] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Sync scope when opened with a new initialScope
+  // Sync initial mode on open
   useEffect(() => {
     if (isOpen) {
-      setScope(initialScope);
+      if (initialScope === 'selected' || initialScope === 'isolated') {
+        setMode('isolated');
+      } else if (initialScope === 'dimmed') {
+        setMode('dimmed');
+      } else {
+        setMode('all');
+      }
     }
   }, [isOpen, initialScope]);
 
+  // Synchronously compute SVG string on render / options change without mutating canvas state
+  const svgString = useMemo(() => {
+    if (!isOpen) return '';
+    try {
+      const nodes = getNodes();
+      const edges = getEdges();
+      return graphToSvgString(nodes, edges, mode, {
+        theme: theme === 'dark' ? 'dark' : 'light',
+        showEdgeLabels,
+        includeBackground,
+        keepHighlightRings,
+      });
+    } catch (err) {
+      console.error('Failed to generate SVG preview:', err);
+      return '';
+    }
+  }, [isOpen, mode, showEdgeLabels, includeBackground, keepHighlightRings, theme, getNodes, getEdges]);
+
   if (!isOpen) return null;
 
-  const handleExport = async () => {
-    const themeBgColor = document.documentElement.classList.contains('dark') ? '#0B0F19' : '#F8FAFC';
-    await exportCanvas({
-      reactFlowInstance,
-      fileName,
-      format,
-      pixelRatio: scale,
-      scope,
-      mode,
-      showEdgeLabels,
-      includeBackground,
-      keepHighlightRings,
-      themeBgColor
-    });
-    onClose();
+  const handleSave = () => {
+    if (!svgString) return;
+    setIsSaving(true);
+
+    try {
+      if (format === 'svg') {
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `${fileName || 'lattice-export'}.svg`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        setIsSaving(false);
+        onClose();
+      } else {
+        // Off-screen canvas conversion without attaching to the live React Flow DOM
+        const img = new Image();
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(svgBlob);
+
+        img.onload = () => {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgString, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            const baseWidth = parseFloat(svgEl?.getAttribute('width') || '800');
+            const baseHeight = parseFloat(svgEl?.getAttribute('height') || '600');
+
+            const canvas = document.createElement('canvas');
+            canvas.width = baseWidth * scale;
+            canvas.height = baseHeight * scale;
+            const ctx = canvas.getContext('2d');
+
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+              const pngUrl = canvas.toDataURL('image/png');
+              const link = document.createElement('a');
+              link.download = `${fileName || 'lattice-export'}.png`;
+              link.href = pngUrl;
+              link.click();
+            }
+          } catch (e) {
+            console.error('PNG render error:', e);
+          } finally {
+            URL.revokeObjectURL(blobUrl);
+            setIsSaving(false);
+            onClose();
+          }
+        };
+
+        img.onerror = () => {
+          console.error('Failed to load SVG into image for canvas rasterization');
+          URL.revokeObjectURL(blobUrl);
+          setIsSaving(false);
+        };
+
+        img.src = blobUrl;
+      }
+    } catch (err) {
+      console.error('Export save error:', err);
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 font-semibold">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 font-semibold text-base">
             <ImageIcon className="w-5 h-5 text-indigo-500" />
-            Export Graph
+            Export Graph Preview
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 flex flex-col gap-5 overflow-y-auto max-h-[80vh]">
-          {/* File Name */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">File Name</label>
-            <input 
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              placeholder="lattice-export"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Format */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Format</label>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <button onClick={() => setFormat('png')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", format === 'png' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>PNG</button>
-                <button onClick={() => setFormat('svg')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", format === 'svg' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>SVG</button>
-              </div>
+        {/* Content Body: Options on Left, Live SVG Preview on Right */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 p-6 overflow-y-auto">
+          {/* Options Column */}
+          <div className="md:col-span-5 flex flex-col gap-4">
+            {/* File Name */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                File Name
+              </label>
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                placeholder="lattice-export"
+              />
             </div>
 
-            {/* Scale */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Quality</label>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                {[1, 2, 3].map(s => (
-                  <button 
-                    key={s} 
-                    onClick={() => setScale(s)} 
-                    className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", scale === s ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}
+            {/* Format & Resolution */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Format
+                </label>
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                  <button
+                    onClick={() => setFormat('png')}
+                    className={clsx(
+                      'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                      format === 'png'
+                        ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    )}
                   >
-                    {s}x
+                    PNG
                   </button>
-                ))}
+                  <button
+                    onClick={() => setFormat('svg')}
+                    className={clsx(
+                      'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                      format === 'svg'
+                        ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    )}
+                  >
+                    SVG
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Scope */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Scope</label>
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-              <button onClick={() => setScope('full')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", scope === 'full' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>Full Graph</button>
-              <button onClick={() => setScope('selected')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", scope === 'selected' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>Selected Only</button>
+              {format === 'png' && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Resolution
+                  </label>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    {[1, 2, 3].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setScale(s)}
+                        className={clsx(
+                          'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                          scale === s
+                            ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        )}
+                      >
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Subgraph Style (if selected) */}
-          {scope === 'selected' && (
-            <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subgraph Style</label>
+            {/* Scope / Mode - 3 States: All / Dimmed / Isolated */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Export Mode
+              </label>
               <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <button onClick={() => setMode('isolated')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", mode === 'isolated' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>Isolated (Hide Unselected)</button>
-                <button onClick={() => setMode('dimmed')} className={clsx("flex-1 text-xs font-medium py-1.5 rounded-md transition-colors", mode === 'dimmed' ? "bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}>Dimmed Context</button>
+                <button
+                  onClick={() => setMode('all')}
+                  className={clsx(
+                    'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                    mode === 'all'
+                      ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  )}
+                  title="Full graph with all nodes & edges at normal opacity"
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setMode('dimmed')}
+                  className={clsx(
+                    'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                    mode === 'dimmed'
+                      ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  )}
+                  title="Full graph with active chain highlighted and unselected dimmed"
+                >
+                  Dimmed
+                </button>
+                <button
+                  onClick={() => setMode('isolated')}
+                  className={clsx(
+                    'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                    mode === 'isolated'
+                      ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  )}
+                  title="Only selected nodes and fully connected edges; unselected hidden"
+                >
+                  Isolated
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Toggles */}
-          <div className="flex flex-col gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <label className="flex items-center justify-between cursor-pointer group">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Render Edge Labels</span>
-              <div className={clsx("w-10 h-6 rounded-full transition-colors flex items-center px-1", showEdgeLabels ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")}>
-                <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform shadow-sm", showEdgeLabels ? "translate-x-4" : "translate-x-0")} />
-              </div>
-              <input type="checkbox" className="hidden" checked={showEdgeLabels} onChange={(e) => setShowEdgeLabels(e.target.checked)} />
-            </label>
+            {/* Toggles */}
+            <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                  Render Edge Labels
+                </span>
+                <div
+                  className={clsx(
+                    'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
+                    showEdgeLabels ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
+                      showEdgeLabels ? 'translate-x-4' : 'translate-x-0'
+                    )}
+                  />
+                </div>
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={showEdgeLabels}
+                  onChange={(e) => setShowEdgeLabels(e.target.checked)}
+                />
+              </label>
 
-            <label className="flex items-center justify-between cursor-pointer group">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Include Canvas Background</span>
-              <div className={clsx("w-10 h-6 rounded-full transition-colors flex items-center px-1", includeBackground ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")}>
-                <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform shadow-sm", includeBackground ? "translate-x-4" : "translate-x-0")} />
-              </div>
-              <input type="checkbox" className="hidden" checked={includeBackground} onChange={(e) => setIncludeBackground(e.target.checked)} />
-            </label>
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                  Include Canvas Background
+                </span>
+                <div
+                  className={clsx(
+                    'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
+                    includeBackground ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
+                      includeBackground ? 'translate-x-4' : 'translate-x-0'
+                    )}
+                  />
+                </div>
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={includeBackground}
+                  onChange={(e) => setIncludeBackground(e.target.checked)}
+                />
+              </label>
 
-            <label className="flex items-center justify-between cursor-pointer group">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Keep Highlight Rings</span>
-              <div className={clsx("w-10 h-6 rounded-full transition-colors flex items-center px-1", keepHighlightRings ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700")}>
-                <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform shadow-sm", keepHighlightRings ? "translate-x-4" : "translate-x-0")} />
-              </div>
-              <input type="checkbox" className="hidden" checked={keepHighlightRings} onChange={(e) => setKeepHighlightRings(e.target.checked)} />
-            </label>
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                  Keep Highlight Rings
+                </span>
+                <div
+                  className={clsx(
+                    'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
+                    keepHighlightRings ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
+                      keepHighlightRings ? 'translate-x-4' : 'translate-x-0'
+                    )}
+                  />
+                </div>
+                <input
+                  type="checkbox"
+                  className="hidden"
+                  checked={keepHighlightRings}
+                  onChange={(e) => setKeepHighlightRings(e.target.checked)}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Live SVG Preview Column */}
+          <div className="md:col-span-7 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-indigo-500" />
+                Live Vector Preview
+              </span>
+            </div>
+
+            <div className="flex-1 min-h-[300px] max-h-[420px] bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl overflow-auto p-3 flex items-center justify-center shadow-inner">
+              {svgString ? (
+                <div
+                  className="w-full h-full flex items-center justify-center overflow-auto [&>svg]:max-w-full [&>svg]:max-h-[380px] [&>svg]:h-auto [&>svg]:w-auto [&>svg]:rounded-lg [&>svg]:shadow-sm"
+                  dangerouslySetInnerHTML={{ __html: svgString }}
+                />
+              ) : (
+                <div className="text-xs text-slate-400">No nodes to preview</div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">
+        {/* Footer Actions */}
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end items-center gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
             Cancel
           </button>
-          <button onClick={handleExport} className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">
+          <button
+            onClick={handleSave}
+            disabled={!svgString || isSaving}
+            className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
+          >
             <Download className="w-4 h-4" />
-            Export Now
+            {isSaving ? 'Exporting...' : `Save (${format.toUpperCase()})`}
           </button>
         </div>
       </div>
