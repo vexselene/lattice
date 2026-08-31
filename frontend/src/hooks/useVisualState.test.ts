@@ -81,10 +81,45 @@ describe('computeEdgeVisualState (pure function)', () => {
       highlightedIds: new Set(['edge-1']),
     });
     expect(state.isHighlighted).toBe(true);
-    expect(state.stroke).toBe(GRAPH_STYLE.colors.edge.hover);
+    expect(state.stroke).toBe(GRAPH_STYLE.colors.edge.highlightDark);
     expect(state.strokeWidth).toBe(GRAPH_STYLE.strokeWidth.highlighted);
     expect(state.filter).toBe(GRAPH_STYLE.glow.highlighted);
     expect(state.strokeDasharray).toBe('5 5');
+  });
+
+  it('computes light mode highlighted edge styling with darkened indigo tone', () => {
+    const state = computeEdgeVisualState('edge-1', {
+      highlightedIds: new Set(['edge-1']),
+      theme: 'light',
+    });
+    expect(state.isHighlighted).toBe(true);
+    expect(state.stroke).toBe(GRAPH_STYLE.colors.edge.highlightLight);
+    expect(state.stroke).toBe('#1d1764');
+    expect(state.strokeWidth).toBe(GRAPH_STYLE.strokeWidth.highlighted);
+    expect(state.filter).toBe('none');
+  });
+
+  it('enforces solid stroke in exportMode "all" and "isolated", but dashed in "dimmed"', () => {
+    const stateAll = computeEdgeVisualState('edge-1', {
+      highlightedIds: new Set(['edge-1']),
+      isExporting: true,
+      exportMode: 'all',
+    });
+    expect(stateAll.strokeDasharray).toBeUndefined();
+
+    const stateIsolated = computeEdgeVisualState('edge-1', {
+      highlightedIds: new Set(['edge-1']),
+      isExporting: true,
+      exportMode: 'isolated',
+    });
+    expect(stateIsolated.strokeDasharray).toBeUndefined();
+
+    const stateDimmed = computeEdgeVisualState('edge-1', {
+      highlightedIds: new Set(['edge-1']),
+      isExporting: true,
+      exportMode: 'dimmed',
+    });
+    expect(stateDimmed.strokeDasharray).toBe('5 5');
   });
 
   it('computes dimmed edge styling', () => {

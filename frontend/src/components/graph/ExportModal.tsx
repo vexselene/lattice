@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { Download, X, Image as ImageIcon, Eye } from 'lucide-react';
+import { Download, X, Image as ImageIcon, Eye, Info } from 'lucide-react';
 import clsx from 'clsx';
 import { graphToSvgString } from '../../lib/exportRenderer';
 import { ExportMode } from '../../lib/exportSelection';
@@ -27,6 +27,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [includeBackground, setIncludeBackground] = useState(true);
   const [keepHighlightRings, setKeepHighlightRings] = useState(false);
+  const [ringScope, setRingScope] = useState<'all' | 'selected' | 'none'>('selected');
+  const [edgeStyle, setEdgeStyle] = useState<'normal' | 'dashed' | 'highlighted'>('highlighted');
+  const [edgeStyleApplyTo, setEdgeStyleApplyTo] = useState<'all' | 'selected' | 'nonSelected'>('all');
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync initial mode on open
@@ -53,12 +56,27 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         showEdgeLabels,
         includeBackground,
         keepHighlightRings,
+        ringScope,
+        edgeStyle,
+        edgeStyleApplyTo,
       });
     } catch (err) {
       console.error('Failed to generate SVG preview:', err);
       return '';
     }
-  }, [isOpen, mode, showEdgeLabels, includeBackground, keepHighlightRings, theme, getNodes, getEdges]);
+  }, [
+    isOpen,
+    mode,
+    showEdgeLabels,
+    includeBackground,
+    keepHighlightRings,
+    ringScope,
+    edgeStyle,
+    edgeStyleApplyTo,
+    theme,
+    getNodes,
+    getEdges,
+  ]);
 
   if (!isOpen) return null;
 
@@ -270,6 +288,110 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </div>
             </div>
 
+            {/* Controls for Dimmed / Isolated Modes */}
+            {mode !== 'all' && (
+              <div className="flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 animate-in fade-in duration-150">
+                {/* Highlight Rings Control */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Highlight Rings
+                  </label>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    {(['all', 'selected', 'none'] as const).map((scope) => (
+                      <button
+                        key={scope}
+                        type="button"
+                        onClick={() => setRingScope(scope)}
+                        className={clsx(
+                          'flex-1 text-xs font-medium py-1.5 rounded-md capitalize transition-colors',
+                          ringScope === scope
+                            ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        )}
+                      >
+                        {scope}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Edge Style Control */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Edge Style
+                  </label>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    {(['normal', 'dashed', 'highlighted'] as const).map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setEdgeStyle(style)}
+                        className={clsx(
+                          'flex-1 text-xs font-medium py-1.5 rounded-md capitalize transition-colors',
+                          edgeStyle === style
+                            ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        )}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Apply To Control */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Apply to
+                  </label>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setEdgeStyleApplyTo('all')}
+                      className={clsx(
+                        'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                        edgeStyleApplyTo === 'all'
+                          ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      All edges
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEdgeStyleApplyTo('selected')}
+                      className={clsx(
+                        'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                        edgeStyleApplyTo === 'selected'
+                          ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      Selected edges
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEdgeStyleApplyTo('nonSelected')}
+                      className={clsx(
+                        'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                        edgeStyleApplyTo === 'nonSelected'
+                          ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      Non-selected edges
+                    </button>
+                  </div>
+                  {mode === 'isolated' && edgeStyleApplyTo === 'nonSelected' && (
+                    <div className="text-[11px] leading-tight text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1">
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>This may render nothing if there are no neighbor edges in the current selection.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Toggles */}
             <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
               <label className="flex items-center justify-between cursor-pointer group">
@@ -322,30 +444,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 />
               </label>
 
-              <label className="flex items-center justify-between cursor-pointer group">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
-                  Keep Highlight Rings
-                </span>
-                <div
-                  className={clsx(
-                    'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
-                    keepHighlightRings ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'
-                  )}
-                >
+              {mode === 'all' && (
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                    Keep Highlight Rings
+                  </span>
                   <div
                     className={clsx(
-                      'w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
-                      keepHighlightRings ? 'translate-x-4' : 'translate-x-0'
+                      'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
+                      keepHighlightRings ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'
                     )}
+                  >
+                    <div
+                      className={clsx(
+                        'w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
+                        keepHighlightRings ? 'translate-x-4' : 'translate-x-0'
+                      )}
+                    />
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={keepHighlightRings}
+                    onChange={(e) => setKeepHighlightRings(e.target.checked)}
                   />
-                </div>
-                <input
-                  type="checkbox"
-                  className="hidden"
-                  checked={keepHighlightRings}
-                  onChange={(e) => setKeepHighlightRings(e.target.checked)}
-                />
-              </label>
+                </label>
+              )}
             </div>
           </div>
 

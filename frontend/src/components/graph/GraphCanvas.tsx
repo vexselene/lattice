@@ -244,6 +244,9 @@ const GraphInner = () => {
       };
     });
 
+    const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
+    const highlightColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.highlightDark : GRAPH_STYLE.colors.edge.highlightLight;
+
     const flowEdges: FlowEdge[] = storeEdges.map((e) => {
       let isHidden = !visibleNodeIds.has(e.source_id) || !visibleNodeIds.has(e.target_id);
       
@@ -263,11 +266,6 @@ const GraphInner = () => {
         isEdgeDimmed = effectiveActiveChain !== null && !effectiveActiveChain.edgeIds.has(e.id);
         isEdgeHighlighted = effectiveActiveChain !== null && effectiveActiveChain.edgeIds.has(e.id);
       }
-
-      
-      const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
-      const highlightColor = GRAPH_STYLE.colors.edge.hover;
-
 
       return {
         id: e.id,
@@ -307,7 +305,7 @@ const GraphInner = () => {
           targetHandle: 'target-left',
           type: 'default',
           animated: true,
-          style: { strokeDasharray: '4 4', stroke: GRAPH_STYLE.colors.edge.hover, strokeWidth: 2 },
+          style: { strokeDasharray: '4 4', stroke: highlightColor, strokeWidth: 2 },
         } as FlowEdge);
       }
     }

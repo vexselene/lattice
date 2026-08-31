@@ -86,8 +86,36 @@ describe('exportSelection', () => {
       expect(result.edgeIds).toEqual(new Set()); // No edge connects node-1 directly to node-3
     });
 
-    it('returns connected edges when selected nodes are adjacent in "isolated" mode', () => {
-      useGraphStore.setState({ selectedNodeIds: new Set(['node-1', 'node-2']) });
+    it('returns selected nodes with empty edges in multi-select (Trigger 3) "isolated" mode', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(['node-1', 'node-2']),
+        selectedEdgeIds: new Set(),
+        activeChain: null,
+        activeMultiMode: 'none',
+      });
+      const result = getExportIncludedIds('isolated');
+      expect(result.nodeIds).toEqual(new Set(['node-1', 'node-2']));
+      expect(result.edgeIds).toEqual(new Set());
+    });
+
+    it('returns root and 1-hop expanded nodes and edges in chains mode (Trigger 4) "isolated" mode', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(['node-1']),
+        selectedEdgeIds: new Set(),
+        activeChain: null,
+        activeMultiMode: 'chains',
+      });
+      const result = getExportIncludedIds('isolated');
+      expect(result.nodeIds).toEqual(new Set(['node-1', 'node-2']));
+      expect(result.edgeIds).toEqual(new Set(['edge-1']));
+    });
+
+    it('returns endpoint nodes and the edge when an edge is clicked (selectedEdgeIds) in "isolated" mode', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(),
+        selectedEdgeIds: new Set(['edge-1']),
+        activeChain: null,
+      });
       const result = getExportIncludedIds('isolated');
       expect(result.nodeIds).toEqual(new Set(['node-1', 'node-2']));
       expect(result.edgeIds).toEqual(new Set(['edge-1']));
@@ -104,12 +132,32 @@ describe('exportSelection', () => {
     });
 
     it('returns highlightedIds and dimmedIds based on activeChain when mode is "dimmed"', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(),
+        selectedEdgeIds: new Set(),
+        activeChain: {
+          nodeIds: new Set(['node-2', 'node-3']),
+          edgeIds: new Set(['edge-2']),
+        },
+      });
       const emphasis = getExportEmphasis('dimmed');
       expect(emphasis).not.toBeNull();
       // activeChain has node-2, node-3 and edge-2
       expect(emphasis!.highlightedIds).toEqual(new Set(['node-2', 'node-3', 'edge-2']));
       // dimmedIds has everything else in the graph (node-1, edge-1)
       expect(emphasis!.dimmedIds).toEqual(new Set(['node-1', 'edge-1']));
+    });
+
+    it('returns highlightedIds and dimmedIds when an edge is clicked (selectedEdgeIds) in "dimmed" mode', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(),
+        selectedEdgeIds: new Set(['edge-1']),
+        activeChain: null,
+      });
+      const emphasis = getExportEmphasis('dimmed');
+      expect(emphasis).not.toBeNull();
+      expect(emphasis!.highlightedIds).toEqual(new Set(['node-1', 'node-2', 'edge-1']));
+      expect(emphasis!.dimmedIds).toEqual(new Set(['node-3', 'edge-2']));
     });
   });
 });

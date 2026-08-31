@@ -1,4 +1,5 @@
 import { useGraphStore } from '../stores/graphStore';
+import { getFocusState } from './focusState';
 
 export type ExportMode = 'all' | 'dimmed' | 'isolated';
 
@@ -14,13 +15,13 @@ export interface ExportEmphasisResult {
 
 /**
  * Returns the set of node and edge IDs to include in an export based on the specified mode.
- * - "all" | "dimmed": every node and edge currently in useGraphStore (full graph, nothing filtered out).
- * - "isolated": nodeIds = selectedNodeIds exactly as-is; edgeIds = edges where BOTH source and target are in selectedNodeIds.
+ * - "all": every node/edge in useGraphStore (full graph).
+ * - "dimmed": every node/edge in useGraphStore (full graph, nothing excluded).
+ * - "isolated": nodeIds = rootNodeIds ∪ neighborNodeIds, edgeIds = rootEdgeIds ∪ neighborEdgeIds.
  */
 export function getExportIncludedIds(mode: ExportMode): IncludedIdsResult {
-  const { nodes, edges, selectedNodeIds } = useGraphStore.getState();
-
   if (mode === 'all' || mode === 'dimmed') {
+    const { nodes, edges } = useGraphStore.getState();
     const nodeIds = new Set<string>();
     nodes.forEach((n) => {
       const id = n.data?.id || (n as any).id;
@@ -36,18 +37,11 @@ export function getExportIncludedIds(mode: ExportMode): IncludedIdsResult {
   }
 
   if (mode === 'isolated') {
-    const nodeIds = new Set<string>(selectedNodeIds);
-    const edgeIds = new Set<string>();
-
-    edges.forEach((e) => {
-      const sourceId = e.source_id || (e as any).source;
-      const targetId = e.target_id || (e as any).target;
-      if (sourceId && targetId && nodeIds.has(sourceId) && nodeIds.has(targetId)) {
-        edgeIds.add(e.id);
-      }
-    });
-
-    return { nodeIds, edgeIds };
+    const focus = getFocusState();
+    return {
+      nodeIds: new Set([...focus.rootNodeIds, ...focus.neighborNodeIds]),
+      edgeIds: new Set([...focus.rootEdgeIds, ...focus.neighborEdgeIds]),
+    };
   }
 
   return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
@@ -55,8 +49,9 @@ export function getExportIncludedIds(mode: ExportMode): IncludedIdsResult {
 
 /**
  * Returns emphasis (highlighted vs dimmed) for the export:
- * - "dimmed" mode: Reads useGraphStore.activeChain directly.
- *   highlightedIds = activeChain's node/edge ids; dimmedIds = everything else in the included set.
+ * - "dimmed" mode: Reads focus state.
+ *   highlightedIds = rootNodeIds ∪ neighborNodeIds ∪ rootEdgeIds ∪ neighborEdgeIds;
+ *   dimmedIds = everything else in the included set.
  * - "all" and "isolated": returns null (no dimming applied in either mode).
  */
 export function getExportEmphasis(mode: ExportMode): ExportEmphasisResult | null {
@@ -64,14 +59,19 @@ export function getExportEmphasis(mode: ExportMode): ExportEmphasisResult | null
     return null;
   }
 
-  const { activeChain } = useGraphStore.getState();
+  const focus = getFocusState();
+  if (!focus.hasActiveFocus) {
+    return null;
+  }
+
   const included = getExportIncludedIds('dimmed');
 
-  const highlightedIds = new Set<string>();
-  if (activeChain) {
-    activeChain.nodeIds.forEach((id) => highlightedIds.add(id));
-    activeChain.edgeIds.forEach((id) => highlightedIds.add(id));
-  }
+  const highlightedIds = new Set<string>([
+    ...focus.rootNodeIds,
+    ...focus.neighborNodeIds,
+    ...focus.rootEdgeIds,
+    ...focus.neighborEdgeIds,
+  ]);
 
   const dimmedIds = new Set<string>();
   included.nodeIds.forEach((id) => {

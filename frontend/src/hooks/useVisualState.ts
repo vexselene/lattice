@@ -1,6 +1,7 @@
 import { useGraphStore } from '../stores/graphStore';
 import { useUIStore } from '../stores/uiStore';
 import { GRAPH_STYLE } from '../config/graphStyleConfig';
+import { getFocusState } from '../lib/focusState';
 
 export const RING_CLASSES: Record<string, string> = {
   email: 'ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
@@ -105,6 +106,7 @@ export interface EdgeVisualContext {
   isHovered?: boolean;
   theme?: 'dark' | 'light';
   isExporting?: boolean;
+  exportMode?: 'all' | 'dimmed' | 'isolated';
   exportKeepHighlightRings?: boolean;
 }
 
@@ -121,6 +123,7 @@ export function computeEdgeVisualState(
     isHovered = false,
     theme = 'dark',
     isExporting = false,
+    exportMode,
     exportKeepHighlightRings = false,
   }: EdgeVisualContext = {}
 ): EdgeVisualState {
@@ -132,12 +135,16 @@ export function computeEdgeVisualState(
   const isVisible = isolatedIds ? isolatedIds.has(edgeId) : true;
 
   const defaultColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.baseDark : GRAPH_STYLE.colors.edge.baseLight;
-  const effectiveSelectedOrHighlighted = (isSelected || isHighlighted) && (!isExporting || exportKeepHighlightRings);
+  const highlightColor = theme === 'dark' ? GRAPH_STYLE.colors.edge.highlightDark : GRAPH_STYLE.colors.edge.highlightLight;
+
+  const effectiveSelectedOrHighlighted = isExporting
+    ? (exportMode === 'dimmed' ? isHighlighted : (exportKeepHighlightRings && (isSelected || isHighlighted)))
+    : (isSelected || isHighlighted);
 
   const stroke = isDimmed
     ? GRAPH_STYLE.colors.edge.dimmed
     : (effectiveSelectedOrHighlighted || isHovered
-        ? GRAPH_STYLE.colors.edge.hover
+        ? highlightColor
         : defaultColor);
 
   const strokeWidth = effectiveSelectedOrHighlighted
@@ -147,10 +154,19 @@ export function computeEdgeVisualState(
   const filter = isDimmed
     ? `blur(${GRAPH_STYLE.blur.dimmed})`
     : (effectiveSelectedOrHighlighted
-        ? GRAPH_STYLE.glow.highlighted
-        : (isHovered ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none'));
+        ? (theme === 'dark' ? GRAPH_STYLE.glow.highlighted : 'none')
+        : (isHovered ? (theme === 'dark' ? 'drop-shadow(0 0 3px rgba(129, 140, 248, 0.3))' : 'none') : 'none'));
 
-  const strokeDasharray = (isHighlighted && (!isExporting || exportKeepHighlightRings)) ? '5 5' : undefined;
+  let strokeDasharray: string | undefined = undefined;
+  if (isExporting) {
+    if (exportMode === 'dimmed' && isHighlighted) {
+      strokeDasharray = '5 5';
+    } else {
+      strokeDasharray = undefined;
+    }
+  } else {
+    strokeDasharray = isHighlighted ? '5 5' : undefined;
+  }
   const hitboxWidth = GRAPH_STYLE.hitbox.width;
   const opacity = !isVisible
     ? GRAPH_STYLE.opacity.isolatedHidden
@@ -174,70 +190,41 @@ export function computeEdgeVisualState(
  * Hook subscribing to Zustand graph & UI stores and returning computed node styling.
  */
 export function useNodeVisualState(nodeId: string, nodeType: string = 'default'): NodeVisualState {
-  const activeChain = useGraphStore((s) => s.activeChain);
   const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
-  const selectedEdgeIds = useGraphStore((s) => s.selectedEdgeIds);
   const activeMultiMode = useGraphStore((s) => s.activeMultiMode);
   const isExporting = useGraphStore((s) => s.isExporting);
   const exportScope = useGraphStore((s) => s.exportScope);
   const exportMode = useGraphStore((s) => s.exportMode);
   const exportKeepHighlightRings = useGraphStore((s) => s.exportKeepHighlightRings);
-  const storeEdges = useGraphStore((s) => s.edges);
   const storeNodes = useGraphStore((s) => s.nodes);
 
-  // Compute effective active chain (incorporating selectedEdgeIds if present)
-  let effectiveActiveChain = activeChain;
-  if (selectedEdgeIds.size > 0) {
-    const edgeIds = new Set<string>(activeChain ? activeChain.edgeIds : []);
-    const nodeIds = new Set<string>(activeChain ? activeChain.nodeIds : []);
-    storeEdges.forEach((e) => {
-      if (selectedEdgeIds.has(e.id)) {
-        edgeIds.add(e.id);
-        nodeIds.add(e.source_id);
-        nodeIds.add(e.target_id);
-      }
-    });
-    effectiveActiveChain = { nodeIds, edgeIds };
-  }
-
+  const focus = getFocusState();
   const dimmedIds = new Set<string>();
 
-  if (activeMultiMode === 'chains' && selectedNodeIds.size > 0) {
-    const chainNodeIds = new Set<string>(selectedNodeIds);
-    storeEdges.forEach((e) => {
-      if (selectedNodeIds.has(e.source_id) || selectedNodeIds.has(e.target_id)) {
-        chainNodeIds.add(e.source_id);
-        chainNodeIds.add(e.target_id);
-      }
-    });
-    storeNodes.forEach((n) => {
-      const id = n.data?.id || (n as any).id;
-      if (id && !chainNodeIds.has(id)) {
-        dimmedIds.add(id);
-      }
-    });
-  } else if (effectiveActiveChain !== null) {
+  const isNodeFocused = (id: string) => focus.rootNodeIds.has(id) || focus.neighborNodeIds.has(id);
+
+  if (focus.hasActiveFocus) {
     storeNodes.forEach((n) => {
       const id = n.data?.id || (n as any).id;
       const isEditing = (n.data as any)?.isEditing;
-      if (id && !effectiveActiveChain!.nodeIds.has(id) && !isEditing) {
+      if (id && !isNodeFocused(id) && !isEditing) {
         dimmedIds.add(id);
       }
     });
   }
 
   let isolatedIds: Set<string> | undefined;
-  if (activeMultiMode === 'isolate' && selectedNodeIds.size > 0) {
-    isolatedIds = selectedNodeIds;
+  if (activeMultiMode === 'isolate' && focus.hasActiveFocus) {
+    isolatedIds = new Set([...focus.rootNodeIds, ...focus.neighborNodeIds]);
   }
 
   if (isExporting && exportScope === 'selected') {
     if (exportMode === 'isolated') {
-      isolatedIds = selectedNodeIds;
+      isolatedIds = new Set([...focus.rootNodeIds, ...focus.neighborNodeIds]);
     } else if (exportMode === 'dimmed') {
       storeNodes.forEach((n) => {
         const id = n.data?.id || (n as any).id;
-        if (id && !selectedNodeIds.has(id)) {
+        if (id && !isNodeFocused(id)) {
           dimmedIds.add(id);
         }
       });
@@ -261,9 +248,7 @@ export function useNodeVisualState(nodeId: string, nodeType: string = 'default')
  */
 export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVisualState {
   const storeEdges = useGraphStore((s) => s.edges);
-  const activeChain = useGraphStore((s) => s.activeChain);
   const selectedEdgeIds = useGraphStore((s) => s.selectedEdgeIds);
-  const selectedNodeIds = useGraphStore((s) => s.selectedNodeIds);
   const activeMultiMode = useGraphStore((s) => s.activeMultiMode);
   const isExporting = useGraphStore((s) => s.isExporting);
   const exportScope = useGraphStore((s) => s.exportScope);
@@ -273,41 +258,15 @@ export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVis
 
   const edge = storeEdges.find((e) => e.id === edgeId) || { id: edgeId };
 
-  // Determine active chain context
-  let effectiveActiveChain = activeChain;
-  if (selectedEdgeIds.size > 0) {
-    const edgeIds = new Set<string>(activeChain ? activeChain.edgeIds : []);
-    const nodeIds = new Set<string>(activeChain ? activeChain.nodeIds : []);
-    storeEdges.forEach((e) => {
-      if (selectedEdgeIds.has(e.id)) {
-        edgeIds.add(e.id);
-        nodeIds.add(e.source_id);
-        nodeIds.add(e.target_id);
-      }
-    });
-    effectiveActiveChain = { nodeIds, edgeIds };
-  }
-
+  const focus = getFocusState();
   const dimmedIds = new Set<string>();
   const highlightedIds = new Set<string>();
 
-  if (activeMultiMode === 'chains' && selectedNodeIds.size > 0) {
-    const chainEdgeIds = new Set<string>();
+  const isEdgeFocused = (id: string) => focus.rootEdgeIds.has(id) || focus.neighborEdgeIds.has(id);
+
+  if (focus.hasActiveFocus) {
     storeEdges.forEach((e) => {
-      if (selectedNodeIds.has(e.source_id) || selectedNodeIds.has(e.target_id)) {
-        chainEdgeIds.add(e.id);
-      }
-    });
-    storeEdges.forEach((e) => {
-      if (chainEdgeIds.has(e.id)) {
-        highlightedIds.add(e.id);
-      } else {
-        dimmedIds.add(e.id);
-      }
-    });
-  } else if (effectiveActiveChain !== null) {
-    storeEdges.forEach((e) => {
-      if (effectiveActiveChain!.edgeIds.has(e.id)) {
+      if (isEdgeFocused(e.id)) {
         highlightedIds.add(e.id);
       } else {
         dimmedIds.add(e.id);
@@ -316,27 +275,16 @@ export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVis
   }
 
   let isolatedIds: Set<string> | undefined;
-  if (activeMultiMode === 'isolate' && selectedNodeIds.size > 0) {
-    isolatedIds = new Set<string>();
-    storeEdges.forEach((e) => {
-      if (selectedNodeIds.has(e.source_id) && selectedNodeIds.has(e.target_id)) {
-        isolatedIds!.add(e.id);
-      }
-    });
+  if (activeMultiMode === 'isolate' && focus.hasActiveFocus) {
+    isolatedIds = new Set([...focus.rootEdgeIds, ...focus.neighborEdgeIds]);
   }
 
   if (isExporting && exportScope === 'selected') {
     if (exportMode === 'isolated') {
-      isolatedIds = new Set<string>();
-      storeEdges.forEach((e) => {
-        if (selectedNodeIds.has(e.source_id) && selectedNodeIds.has(e.target_id)) {
-          isolatedIds!.add(e.id);
-        }
-      });
+      isolatedIds = new Set([...focus.rootEdgeIds, ...focus.neighborEdgeIds]);
     } else if (exportMode === 'dimmed') {
       storeEdges.forEach((e) => {
-        const isSelectedEdge = selectedNodeIds.has(e.source_id) && selectedNodeIds.has(e.target_id);
-        if (!isSelectedEdge) {
+        if (!isEdgeFocused(e.id)) {
           dimmedIds.add(e.id);
         }
       });
@@ -353,6 +301,7 @@ export function useEdgeVisualState(edgeId: string, isHovered?: boolean): EdgeVis
       isHovered,
       theme,
       isExporting,
+      exportMode,
       exportKeepHighlightRings,
     }
   );

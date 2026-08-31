@@ -4,6 +4,10 @@ export const GRAPH_STYLE = {
       baseDark: "#64748b", 
       baseLight: "#475569", 
       hover: "#818cf8", 
+      hoverDark: "#818cf8",
+      hoverLight: "#1d1764",
+      highlightDark: "#818cf8", // indigo-400 for dark mode canvas
+      highlightLight: "#1d1764", // dark navy/indigo for high contrast on light canvas
       highlighted: "#4338ca", 
       dimmed: "#47556998" 
     },

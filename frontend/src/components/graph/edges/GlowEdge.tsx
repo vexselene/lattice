@@ -105,8 +105,10 @@ export const GlowEdge: React.FC<EdgeProps> = ({
           ...style,
           strokeWidth: visualState.strokeWidth,
           stroke: visualState.stroke,
+          strokeDasharray: visualState.strokeDasharray,
           filter: visualState.filter,
           opacity: visualState.opacity,
+          animation: (animated || visualState.isHighlighted) ? 'dashdraw 0.5s linear infinite' : undefined,
           pointerEvents: 'none',
           transition: 'stroke 300ms ease-out, stroke-opacity 300ms ease-out, stroke-width 300ms ease-out, opacity 300ms ease-out, filter 300ms ease-out',
         }}
@@ -125,23 +127,6 @@ export const GlowEdge: React.FC<EdgeProps> = ({
         className="cursor-pointer"
         style={{ pointerEvents: 'all' }}
       />
-      
-      {(animated || visualState.isHighlighted) && (
-        <path
-          d={edgePath}
-          fill="none"
-          stroke={visualState.stroke}
-          strokeWidth={visualState.strokeWidth}
-          strokeDasharray={visualState.strokeDasharray || '5 5'}
-          className="react-flow__edge-path"
-          style={{
-            pointerEvents: 'none',
-            opacity: 1,
-            filter: GRAPH_STYLE.glow.highlighted,
-            animation: 'dashdraw 0.5s linear infinite'
-          }}
-        />
-      )}
 
       {isMenuOpen && (
         <EdgeLabelRenderer>
