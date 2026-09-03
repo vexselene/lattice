@@ -25,6 +25,13 @@ lattice.db
 lattice.salt
 app.db
 
+# Rust / Tauri Artifacts
+src-tauri/target/
+target/
+**/*.rs.bk
+src-tauri/gen/
+*.pdb
+
 # Node / Frontend Artifacts
 node_modules/
 frontend/node_modules/
