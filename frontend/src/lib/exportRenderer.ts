@@ -12,16 +12,16 @@ import { getFocusState } from './focusState';
 import { useGraphStore } from '../stores/graphStore';
 import { GRAPH_STYLE } from '../config/graphStyleConfig';
 import { computeNodeVisualState, computeEdgeVisualState } from '../hooks/useVisualState';
-import { EmailNode } from '../components/graph/nodes/EmailNode';
-import { AccountNode } from '../components/graph/nodes/AccountNode';
-import { PhoneNode } from '../components/graph/nodes/PhoneNode';
-import { ServiceNode } from '../components/graph/nodes/ServiceNode';
+import { EmailNodeExport } from '../components/graph/nodes/EmailNodeExport';
+import { AccountNodeExport } from '../components/graph/nodes/AccountNodeExport';
+import { PhoneNodeExport } from '../components/graph/nodes/PhoneNodeExport';
+import { ServiceNodeExport } from '../components/graph/nodes/ServiceNodeExport';
 
-const nodeTypesMap: Record<string, React.FC<any>> = {
-  email: EmailNode,
-  account: AccountNode,
-  phone: PhoneNode,
-  service: ServiceNode,
+const nodeExportTypesMap: Record<string, React.FC<any>> = {
+  email: EmailNodeExport,
+  account: AccountNodeExport,
+  phone: PhoneNodeExport,
+  service: ServiceNodeExport,
 };
 
 export interface ExportRendererConfig {
@@ -329,7 +329,7 @@ export function graphToSvgString(
       }
     );
 
-    const NodeComponent = nodeTypesMap[node.type || 'email'] || EmailNode;
+    const NodeExportComponent = nodeExportTypesMap[node.type || 'email'] || EmailNodeExport;
     const sanitizedData = {
       ...(node.data || {}),
       isExpanded: false,
@@ -337,7 +337,7 @@ export function graphToSvgString(
     };
 
     const renderedMarkup = ReactDOMServer.renderToStaticMarkup(
-      React.createElement(NodeComponent, {
+      React.createElement(NodeExportComponent, {
         id: node.id,
         data: sanitizedData,
         exportMode: true,

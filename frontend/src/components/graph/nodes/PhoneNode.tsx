@@ -8,8 +8,8 @@ import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
 import { useNodeVisualState } from '../../../hooks/useVisualState';
 
-import { GRAPH_STYLE } from '../../../config/graphStyleConfig';
 import { NodeVisualState } from '../../../hooks/useVisualState';
+import { PhoneNodeExport } from './PhoneNodeExport';
 
 export interface PhoneNodeProps {
   data: PhoneNodeType;
@@ -19,64 +19,8 @@ export interface PhoneNodeProps {
   visualState?: NodeVisualState;
 }
 
-export const PhoneNode: React.FC<PhoneNodeProps> = ({ data, id: _id, exportMode, theme, visualState }) => {
-  if (exportMode) {
-    const themeMode = theme || 'dark';
-    const nodeTheme = GRAPH_STYLE.colors.node.phone[themeMode];
-    const ringStyle = visualState?.ringClass
-      ? `0 0 0 2px ${nodeTheme.ring}, 0 0 0 3px ${themeMode === 'dark' ? '#0f172a' : '#ffffff'}`
-      : undefined;
-
-    return (
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 12px',
-          borderRadius: '9999px',
-          backgroundColor: nodeTheme.bg,
-          color: nodeTheme.text,
-          border: `1px solid ${nodeTheme.border}`,
-          boxShadow: ringStyle,
-          opacity: visualState?.opacity ?? 1,
-          filter: visualState?.filter ?? 'none',
-          fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          fontSize: '14px',
-          fontWeight: 500,
-          lineHeight: '20px',
-          boxSizing: 'border-box',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '4px',
-            borderRadius: '9999px',
-            backgroundColor: nodeTheme.iconBg,
-            color: nodeTheme.iconText,
-            flexShrink: 0,
-          }}
-        >
-          <Smartphone style={{ width: '14px', height: '14px' }} />
-        </div>
-        <span
-          style={{
-            maxWidth: '150px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          {data.number || 'New Phone'}
-        </span>
-      </div>
-    );
-  }
+export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
+  const { data, id: _id, exportMode } = props;
 
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
   const [isEditing, setIsEditing] = useState((data as any).isEditing || false);
@@ -96,17 +40,19 @@ export const PhoneNode: React.FC<PhoneNodeProps> = ({ data, id: _id, exportMode,
 
   const prevCollapseSignal = useRef(collapseAllSignal);
   useEffect(() => {
+    if (exportMode) return;
     if (collapseAllSignal !== prevCollapseSignal.current) {
       prevCollapseSignal.current = collapseAllSignal;
       if (!isEditing) { setIsExpanded(false); setExpandedNodeId(null); }
     }
-  }, [collapseAllSignal, isEditing, setExpandedNodeId]);
+  }, [collapseAllSignal, isEditing, setExpandedNodeId, exportMode]);
 
   useEffect(() => {
+    if (exportMode) return;
     if (expandedNodeId !== data.id && !isEditing && isExpanded) {
       setIsExpanded(false);
     }
-  }, [expandedNodeId, data.id, isEditing, isExpanded]);
+  }, [expandedNodeId, data.id, isEditing, isExpanded, exportMode]);
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -179,6 +125,10 @@ export const PhoneNode: React.FC<PhoneNodeProps> = ({ data, id: _id, exportMode,
       setEditData({ number: data.number || '', carrier: data.carrier || '' });
     }
   };
+
+  if (exportMode) {
+    return <PhoneNodeExport {...props} />;
+  }
 
   if (!isVisible) return null;
 
