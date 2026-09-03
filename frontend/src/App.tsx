@@ -57,33 +57,11 @@ function App() {
     setConfirmOpen(true);
   };
 
-  // TEMP: remove after Tauri scaffold verification
-  const handleTauriPing = async () => {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const res = await invoke<string>('cmd_ping');
-      console.log('Tauri IPC Ping Result:', res);
-    } catch (err) {
-      console.error('Tauri IPC Ping Error:', err);
-    }
-  };
-
-  useEffect(() => {
-    handleTauriPing();
-  }, []);
-
   if (!isUnlocked) {
     return (
       <>
         <AutoLockTimer />
         <UnlockScreen />
-        {/* TEMP: remove after Tauri scaffold verification */}
-        <button
-          onClick={handleTauriPing}
-          className="fixed bottom-4 left-4 z-50 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-mono rounded shadow-lg transition-all"
-        >
-          Ping Tauri
-        </button>
       </>
     );
   }

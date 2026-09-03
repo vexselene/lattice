@@ -6,39 +6,115 @@ import { Lock, Unlock } from 'lucide-react';
 export const UnlockScreen = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { setUnlocked, setSetup, isSetup } = useAuthStore();
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [countdownSec, setCountdownSec] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { setUnlocked, setSetup, isSetup, setAutoLock } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkStatus().then(() => {
-      // In a real flow, if it's not setup, we'd know from status or initial fetch.
-      // Assuming our backend throws or returns setup status.
-      // For simplicity, we just try to unlock.
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-      // Assume not setup if status fails, or handle it properly.
-    });
-  }, []);
+    checkStatus()
+      .then((status) => {
+        setSetup(status.is_setup);
+        setUnlocked(status.unlocked);
+        if (status.auto_lock_minutes) {
+          setAutoLock(status.auto_lock_minutes);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, [setSetup, setUnlocked, setAutoLock]);
+
+  // Live countdown timer for rate limiting
+  useEffect(() => {
+    if (!rateLimitedUntil) return;
+
+    const updateCountdown = () => {
+      const remainingMs = rateLimitedUntil - Date.now();
+      if (remainingMs <= 0) {
+        setRateLimitedUntil(null);
+        setCountdownSec(0);
+      } else {
+        setCountdownSec(Math.ceil(remainingMs / 1000));
+      }
+    };
+
+    updateCountdown();
+    const intervalId = window.setInterval(updateCountdown, 250);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [rateLimitedUntil]);
+
+  const isRateLimited = rateLimitedUntil !== null && countdownSec > 0;
+  const isDisabled = isRateLimited || isSubmitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRateLimited || isSubmitting) return;
+    setIsSubmitting(true);
     setError('');
+
     try {
       if (!isSetup) {
-        // Try setup first if not setup
         await setupAuth(password);
         setSetup(true);
       }
-      const res = await unlockAuth(password);
-      if (res.session_token) {
-        setUnlocked(true, res.session_token);
-      }
+      await unlockAuth(password);
+      setUnlocked(true);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to unlock');
-      if (err.response?.data?.detail === 'Already setup') {
-        setSetup(true);
+      let errorKey = '';
+      let details: any = null;
+
+      if (err && typeof err === 'object' && 'error' in err) {
+        errorKey = err.error;
+        details = err.details;
+      } else if (typeof err === 'string') {
+        try {
+          const parsed = JSON.parse(err);
+          if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+            errorKey = parsed.error;
+            details = parsed.details;
+          }
+        } catch {
+          errorKey = err;
+        }
       }
+
+      switch (errorKey) {
+        case 'AlreadySetup':
+          setSetup(true);
+          setError('Vault is already set up. Please enter your master password.');
+          break;
+        case 'InvalidPassword':
+          setError('Incorrect password');
+          break;
+        case 'RateLimited': {
+          const ms = details?.wait_remaining_ms ?? 1000;
+          const until = Date.now() + ms;
+          setRateLimitedUntil(until);
+          setCountdownSec(Math.ceil(ms / 1000));
+          setError('');
+          break;
+        }
+        case 'NotSetup':
+          setError('Vault is not set up yet.');
+          break;
+        default:
+          setError(
+            typeof details === 'string'
+              ? details
+              : typeof err === 'string'
+              ? err
+              : err?.message || 'Failed to unlock'
+          );
+          break;
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -46,31 +122,52 @@ export const UnlockScreen = () => {
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-sm w-full">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-sm w-full"
+      >
         <div className="flex justify-center mb-4">
           <div className="p-4 bg-[#4F46E5]/10 rounded-full">
-            {isSetup ? <Lock className="w-8 h-8 text-[#4F46E5]" /> : <Unlock className="w-8 h-8 text-[#4F46E5]" />}
+            {isSetup ? (
+              <Lock className="w-8 h-8 text-[#4F46E5]" />
+            ) : (
+              <Unlock className="w-8 h-8 text-[#4F46E5]" />
+            )}
           </div>
         </div>
         <h1 className="text-2xl font-bold text-center text-slate-900 dark:text-white">
           {isSetup ? 'Unlock Lattice' : 'Setup Master Password'}
         </h1>
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+        {isRateLimited ? (
+          <p className="text-amber-500 dark:text-amber-400 text-sm text-center font-medium animate-pulse">
+            Try again in {countdownSec}s
+          </p>
+        ) : error ? (
+          <p className="text-red-500 text-sm text-center">{error}</p>
+        ) : null}
         <div className="flex flex-col gap-2">
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Master Password"
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100"
+            disabled={isDisabled}
+            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
             required
           />
         </div>
         <button
           type="submit"
-          className="mt-2 w-full py-2 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-semibold transition-colors"
+          disabled={isDisabled}
+          className="mt-2 w-full py-2 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#4F46E5]"
         >
-          {isSetup ? 'Unlock' : 'Initialize'}
+          {isSubmitting
+            ? 'Decrypting…'
+            : isRateLimited
+            ? `Wait ${countdownSec}s`
+            : isSetup
+            ? 'Unlock'
+            : 'Initialize'}
         </button>
       </form>
     </div>

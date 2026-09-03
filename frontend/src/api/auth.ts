@@ -1,26 +1,27 @@
-import { apiClient } from './client';
+import { invoke } from '@tauri-apps/api/core';
 
-export const setupAuth = async (master_password: string) => {
-  const { data } = await apiClient.post('/auth/setup', { master_password });
-  return data;
+export interface AuthStatus {
+  is_setup: boolean;
+  unlocked: boolean;
+  auto_lock_minutes: number;
+}
+
+export const setupAuth = async (password: string): Promise<void> => {
+  await invoke('cmd_auth_setup', { password });
 };
 
-export const unlockAuth = async (master_password: string) => {
-  const { data } = await apiClient.post('/auth/unlock', { master_password });
-  return data; // { session_token, expires_at }
+export const unlockAuth = async (password: string): Promise<void> => {
+  await invoke('cmd_auth_unlock', { password });
 };
 
-export const lockAuth = async () => {
-  const { data } = await apiClient.post('/auth/lock');
-  return data;
+export const lockAuth = async (): Promise<void> => {
+  await invoke('cmd_auth_lock');
 };
 
-export const checkStatus = async () => {
-  const { data } = await apiClient.get('/auth/status');
-  return data; // { unlocked, auto_lock_minutes }
+export const checkStatus = async (): Promise<AuthStatus> => {
+  return await invoke<AuthStatus>('cmd_auth_status');
 };
 
-export const updateSettings = async (auto_lock_minutes: number) => {
-  const { data } = await apiClient.patch('/auth/settings', { auto_lock_minutes });
-  return data;
+export const updateSettings = async (autoLockMinutes: number): Promise<void> => {
+  await invoke('cmd_update_settings', { autoLockMinutes });
 };
