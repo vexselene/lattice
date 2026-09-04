@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build:native": "napi build --platform --cargo-cwd src-tauri --dts native/index.d.ts --js native/index.js native",
+    "build:native": "napi build --platform --cargo-cwd src-tauri --dts index.d.ts --js index.js native",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "start": "electron --no-sandbox ."

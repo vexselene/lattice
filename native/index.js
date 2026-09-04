@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { initApp, cmdAuthSetup, cmdAuthUnlock, cmdAuthLock, cmdAuthStatus, cmdUpdateSettings, cmdGeneratePassword } = nativeBinding
+const { initApp, cmdAuthSetup, cmdAuthUnlock, cmdAuthLock, cmdAuthStatus, cmdUpdateSettings, cmdGetGraph, cmdGetNodes, cmdGetNode, cmdCreateNode, cmdUpdateNode, cmdDeleteNode, cmdGetNodePassword, cmdUpdateNodePosition, cmdGetEdges, cmdCreateEdge, cmdUpdateEdge, cmdDeleteEdge, cmdGetSubgraph, cmdSearch, cmdGeneratePassword } = nativeBinding
 
 module.exports.initApp = initApp
 module.exports.cmdAuthSetup = cmdAuthSetup
@@ -318,4 +318,18 @@ module.exports.cmdAuthUnlock = cmdAuthUnlock
 module.exports.cmdAuthLock = cmdAuthLock
 module.exports.cmdAuthStatus = cmdAuthStatus
 module.exports.cmdUpdateSettings = cmdUpdateSettings
+module.exports.cmdGetGraph = cmdGetGraph
+module.exports.cmdGetNodes = cmdGetNodes
+module.exports.cmdGetNode = cmdGetNode
+module.exports.cmdCreateNode = cmdCreateNode
+module.exports.cmdUpdateNode = cmdUpdateNode
+module.exports.cmdDeleteNode = cmdDeleteNode
+module.exports.cmdGetNodePassword = cmdGetNodePassword
+module.exports.cmdUpdateNodePosition = cmdUpdateNodePosition
+module.exports.cmdGetEdges = cmdGetEdges
+module.exports.cmdCreateEdge = cmdCreateEdge
+module.exports.cmdUpdateEdge = cmdUpdateEdge
+module.exports.cmdDeleteEdge = cmdDeleteEdge
+module.exports.cmdGetSubgraph = cmdGetSubgraph
+module.exports.cmdSearch = cmdSearch
 module.exports.cmdGeneratePassword = cmdGeneratePassword

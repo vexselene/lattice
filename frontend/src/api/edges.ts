@@ -1,8 +1,30 @@
-import { invoke } from '@tauri-apps/api/core';
 import { Edge, EdgeRelation, NodeType } from '../types/graph';
 
+function normalizeError(err: any): any {
+  if (err && typeof err === 'object') {
+    if ('error' in err) return err;
+    if (typeof err.message === 'string') {
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+          Object.assign(err, parsed);
+          return err;
+        }
+      } catch {}
+    }
+  }
+  return err;
+}
+
 export const getEdges = async (node_type?: NodeType, node_id?: string): Promise<Edge[]> => {
-  return await invoke<Edge[]>('cmd_get_edges', { nodeType: node_type, nodeId: node_id });
+  try {
+    if (window.api?.cmdGetEdges) {
+      return await window.api.cmdGetEdges(node_type, node_id);
+    }
+    return [];
+  } catch (err) {
+    throw normalizeError(err);
+  }
 };
 
 export const createEdge = async (edgeData: {
@@ -13,17 +35,38 @@ export const createEdge = async (edgeData: {
   relation: EdgeRelation;
   notes?: string;
 }): Promise<Edge> => {
-  return await invoke<Edge>('cmd_create_edge', { edge: edgeData });
+  try {
+    if (window.api?.cmdCreateEdge) {
+      return await window.api.cmdCreateEdge(edgeData);
+    }
+    throw new Error('window.api.cmdCreateEdge is not available');
+  } catch (err) {
+    throw normalizeError(err);
+  }
 };
 
 export const updateEdge = async (
   id: string,
   edgeData: { relation?: EdgeRelation; notes?: string }
 ): Promise<Edge> => {
-  return await invoke<Edge>('cmd_update_edge', { edgeId: id, payload: edgeData });
+  try {
+    if (window.api?.cmdUpdateEdge) {
+      return await window.api.cmdUpdateEdge(id, edgeData);
+    }
+    throw new Error('window.api.cmdUpdateEdge is not available');
+  } catch (err) {
+    throw normalizeError(err);
+  }
 };
 
 export const deleteEdge = async (id: string): Promise<{ success: boolean }> => {
-  await invoke('cmd_delete_edge', { edgeId: id });
-  return { success: true };
+  try {
+    if (window.api?.cmdDeleteEdge) {
+      await window.api.cmdDeleteEdge(id);
+      return { success: true };
+    }
+    return { success: false };
+  } catch (err) {
+    throw normalizeError(err);
+  }
 };

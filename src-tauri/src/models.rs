@@ -69,15 +69,21 @@ pub struct AccountNode {
     pub updated_at: String,
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edge {
     pub id: String,
+    #[napi(js_name = "source_type")]
     pub source_type: String,
+    #[napi(js_name = "source_id")]
     pub source_id: String,
+    #[napi(js_name = "target_type")]
     pub target_type: String,
+    #[napi(js_name = "target_id")]
     pub target_id: String,
     pub relation: String,
     pub notes: Option<String>,
+    #[napi(js_name = "created_at")]
     pub created_at: String,
 }
 
@@ -136,29 +142,38 @@ impl NodeType {
     }
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphNode {
+    #[napi(js_name = "type")]
     #[serde(rename = "type")]
     pub node_type: String,
     pub data: serde_json::Value,
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphData {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<Edge>,
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EdgeCreatePayload {
+    #[napi(js_name = "source_type")]
     pub source_type: String,
+    #[napi(js_name = "source_id")]
     pub source_id: String,
+    #[napi(js_name = "target_type")]
     pub target_type: String,
+    #[napi(js_name = "target_id")]
     pub target_id: String,
     pub relation: String,
     pub notes: Option<String>,
 }
 
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EdgeUpdatePayload {
     pub relation: Option<String>,

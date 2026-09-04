@@ -1,16 +1,3 @@
-declare global {
-  interface Window {
-    api?: {
-      cmdAuthSetup: (password: string) => Promise<void>;
-      cmdAuthUnlock: (password: string) => Promise<void>;
-      cmdAuthLock: () => void | Promise<void>;
-      cmdAuthStatus: () => any | Promise<any>;
-      cmdUpdateSettings: (autoLockMinutes: number) => void | Promise<void>;
-      cmdGeneratePassword: () => any | Promise<any>;
-    };
-  }
-}
-
 export interface AuthStatus {
   is_setup: boolean;
   unlocked: boolean;

@@ -9,9 +9,53 @@ export declare function cmdAuthUnlock(password: string): Promise<void>
 export declare function cmdAuthLock(): void
 export declare function cmdAuthStatus(): AuthStatus
 export declare function cmdUpdateSettings(autoLockMinutes: number): void
+export declare function cmdGetGraph(): GraphData
+export declare function cmdGetNodes(nodeType: string, skip?: number | undefined | null, limit?: number | undefined | null): Array<GraphNode>
+export declare function cmdGetNode(nodeType: string, nodeId: string): GraphNode
+export declare function cmdCreateNode(nodeType: string, data: any): GraphNode
+export declare function cmdUpdateNode(nodeType: string, nodeId: string, data: any): GraphNode
+export declare function cmdDeleteNode(nodeType: string, nodeId: string): void
+export declare function cmdGetNodePassword(nodeType: string, nodeId: string): string | null
+export declare function cmdUpdateNodePosition(nodeType: string, nodeId: string, x: number, y: number): void
+export declare function cmdGetEdges(nodeType?: string | undefined | null, nodeId?: string | undefined | null): Array<Edge>
+export declare function cmdCreateEdge(edge: EdgeCreatePayload): Edge
+export declare function cmdUpdateEdge(edgeId: string, payload: EdgeUpdatePayload): Edge
+export declare function cmdDeleteEdge(edgeId: string): void
+export declare function cmdGetSubgraph(nodeType: string, nodeId: string, depth?: number | undefined | null): any
+export declare function cmdSearch(query: string, types?: Array<string> | undefined | null): Array<GraphNode>
+export declare function cmdGeneratePassword(): any
+export interface Edge {
+  id: string
+  source_type: string
+  source_id: string
+  target_type: string
+  target_id: string
+  relation: string
+  notes?: string
+  created_at: string
+}
 export interface AuthStatus {
   isSetup: boolean
   unlocked: boolean
   autoLockMinutes: number
 }
-export declare function cmdGeneratePassword(): any
+export interface GraphNode {
+  type: string
+  data: any
+}
+export interface GraphData {
+  nodes: Array<GraphNode>
+  edges: Array<Edge>
+}
+export interface EdgeCreatePayload {
+  source_type: string
+  source_id: string
+  target_type: string
+  target_id: string
+  relation: string
+  notes?: string
+}
+export interface EdgeUpdatePayload {
+  relation?: string
+  notes?: string
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { Download, X, Image as ImageIcon, Eye, Info } from 'lucide-react';
+import { Download, X, Image as ImageIcon, Eye, Info, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { graphToSvgString } from '../../lib/exportRenderer';
 import { ExportMode } from '../../lib/exportSelection';
@@ -31,10 +31,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [edgeStyle, setEdgeStyle] = useState<'normal' | 'dashed' | 'highlighted'>('highlighted');
   const [edgeStyleApplyTo, setEdgeStyleApplyTo] = useState<'all' | 'selected' | 'nonSelected'>('all');
   const [isSaving, setIsSaving] = useState(false);
+  const [savedFilePath, setSavedFilePath] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync initial mode on open
   useEffect(() => {
     if (isOpen) {
+      setSavedFilePath(null);
+      setSaveError(null);
       if (initialScope === 'selected' || initialScope === 'isolated') {
         setMode('isolated');
       } else if (initialScope === 'dimmed') {
@@ -80,70 +84,85 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!svgString) return;
     setIsSaving(true);
+    setSaveError(null);
+    setSavedFilePath(null);
 
     try {
+      const defaultFilename = `${fileName || 'lattice-export'}.${format}`;
+      let contentToSave = '';
+
       if (format === 'svg') {
-        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        contentToSave = svgString;
+      } else {
+        // Off-screen canvas conversion
+        contentToSave = await new Promise<string>((resolve, reject) => {
+          const img = new Image();
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const blobUrl = URL.createObjectURL(svgBlob);
+
+          img.onload = () => {
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(svgString, 'image/svg+xml');
+              const svgEl = doc.querySelector('svg');
+              const baseWidth = parseFloat(svgEl?.getAttribute('width') || '800');
+              const baseHeight = parseFloat(svgEl?.getAttribute('height') || '600');
+
+              const canvas = document.createElement('canvas');
+              canvas.width = baseWidth * scale;
+              canvas.height = baseHeight * scale;
+              const ctx = canvas.getContext('2d');
+
+              if (ctx) {
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const pngUrl = canvas.toDataURL('image/png');
+                resolve(pngUrl);
+              } else {
+                reject(new Error('Failed to get canvas 2d context'));
+              }
+            } catch (e) {
+              reject(e);
+            } finally {
+              URL.revokeObjectURL(blobUrl);
+            }
+          };
+
+          img.onerror = () => {
+            URL.revokeObjectURL(blobUrl);
+            reject(new Error('Failed to load SVG into image for canvas rasterization'));
+          };
+
+          img.src = blobUrl;
+        });
+      }
+
+      if (window.api?.exportSaveFile) {
+        const res = await window.api.exportSaveFile(contentToSave, defaultFilename);
+        if (!res.canceled && res.filePath) {
+          setSavedFilePath(res.filePath);
+        }
+      } else {
+        // Fallback for browser testing
+        const blob = format === 'svg'
+          ? new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+          : await (await fetch(contentToSave)).blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = `${fileName || 'lattice-export'}.svg`;
+        link.download = defaultFilename;
         link.href = url;
         link.click();
         URL.revokeObjectURL(url);
-        setIsSaving(false);
-        onClose();
-      } else {
-        // Off-screen canvas conversion without attaching to the live React Flow DOM
-        const img = new Image();
-        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-        const blobUrl = URL.createObjectURL(svgBlob);
-
-        img.onload = () => {
-          try {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(svgString, 'image/svg+xml');
-            const svgEl = doc.querySelector('svg');
-            const baseWidth = parseFloat(svgEl?.getAttribute('width') || '800');
-            const baseHeight = parseFloat(svgEl?.getAttribute('height') || '600');
-
-            const canvas = document.createElement('canvas');
-            canvas.width = baseWidth * scale;
-            canvas.height = baseHeight * scale;
-            const ctx = canvas.getContext('2d');
-
-            if (ctx) {
-              ctx.imageSmoothingEnabled = true;
-              ctx.imageSmoothingQuality = 'high';
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-              const pngUrl = canvas.toDataURL('image/png');
-              const link = document.createElement('a');
-              link.download = `${fileName || 'lattice-export'}.png`;
-              link.href = pngUrl;
-              link.click();
-            }
-          } catch (e) {
-            console.error('PNG render error:', e);
-          } finally {
-            URL.revokeObjectURL(blobUrl);
-            setIsSaving(false);
-            onClose();
-          }
-        };
-
-        img.onerror = () => {
-          console.error('Failed to load SVG into image for canvas rasterization');
-          URL.revokeObjectURL(blobUrl);
-          setIsSaving(false);
-        };
-
-        img.src = blobUrl;
+        setSavedFilePath(`Downloaded as ${defaultFilename}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Export save error:', err);
+      setSaveError(err?.message || 'Failed to save export file');
+    } finally {
       setIsSaving(false);
     }
   };
@@ -494,6 +513,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Saved Path Notification Banner */}
+        {savedFilePath && (
+          <div className="mx-6 mb-3 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300">
+              <Check className="w-4 h-4 text-emerald-500" />
+              <span>File exported and saved successfully</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 font-medium">Saved to:</span>
+              <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 bg-white/80 dark:bg-black/40 px-2.5 py-1.5 rounded border border-emerald-200 dark:border-emerald-900/50 break-all select-all flex-1 shadow-sm">
+                {savedFilePath}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {saveError && (
+          <div className="mx-6 mb-3 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2">
+            <span>Error: {saveError}</span>
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end items-center gap-3">

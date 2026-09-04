@@ -1613,144 +1613,114 @@ pub fn generate_password_core() -> Result<serde_json::Value, AuthError> {
 }
 
 // =========================================================================
-// Tauri Command Wrappers
+// Napi Wrappers
 // =========================================================================
 
-#[tauri::command]
-pub async fn cmd_get_graph(
-    state: tauri::State<'_, Mutex<AppState>>,
-) -> Result<GraphData, AuthError> {
-    get_graph_core(state.inner())
+use napi_derive::napi;
+
+#[napi]
+pub fn cmd_get_graph() -> napi::Result<GraphData> {
+    get_graph_core(&crate::state::GLOBAL_APP_STATE).map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_get_nodes(
-    state: tauri::State<'_, Mutex<AppState>>,
+#[napi]
+pub fn cmd_get_nodes(
     node_type: String,
     skip: Option<u32>,
     limit: Option<u32>,
-) -> Result<Vec<GraphNode>, AuthError> {
-    get_nodes_core(state.inner(), &node_type, skip, limit)
+) -> napi::Result<Vec<GraphNode>> {
+    get_nodes_core(&crate::state::GLOBAL_APP_STATE, &node_type, skip, limit)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_get_node(
-    state: tauri::State<'_, Mutex<AppState>>,
-    node_type: String,
-    node_id: String,
-) -> Result<GraphNode, AuthError> {
-    get_node_core(state.inner(), &node_type, &node_id)
+#[napi]
+pub fn cmd_get_node(node_type: String, node_id: String) -> napi::Result<GraphNode> {
+    get_node_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_create_node(
-    state: tauri::State<'_, Mutex<AppState>>,
-    node_type: String,
-    data: serde_json::Value,
-) -> Result<GraphNode, AuthError> {
-    create_node_core(state.inner(), &node_type, data)
+#[napi]
+pub fn cmd_create_node(node_type: String, data: serde_json::Value) -> napi::Result<GraphNode> {
+    create_node_core(&crate::state::GLOBAL_APP_STATE, &node_type, data)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_update_node(
-    state: tauri::State<'_, Mutex<AppState>>,
+#[napi]
+pub fn cmd_update_node(
     node_type: String,
     node_id: String,
     data: serde_json::Value,
-) -> Result<GraphNode, AuthError> {
-    update_node_core(state.inner(), &node_type, &node_id, data)
+) -> napi::Result<GraphNode> {
+    update_node_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id, data)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_delete_node(
-    state: tauri::State<'_, Mutex<AppState>>,
-    node_type: String,
-    node_id: String,
-) -> Result<(), AuthError> {
-    delete_node_core(state.inner(), &node_type, &node_id)
+#[napi]
+pub fn cmd_delete_node(node_type: String, node_id: String) -> napi::Result<()> {
+    delete_node_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_get_node_password(
-    state: tauri::State<'_, Mutex<AppState>>,
-    node_type: String,
-    node_id: String,
-) -> Result<Option<String>, AuthError> {
-    get_node_password_core(state.inner(), &node_type, &node_id)
+#[napi]
+pub fn cmd_get_node_password(node_type: String, node_id: String) -> napi::Result<Option<String>> {
+    get_node_password_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_update_node_position(
-    state: tauri::State<'_, Mutex<AppState>>,
+#[napi]
+pub fn cmd_update_node_position(
     node_type: String,
     node_id: String,
     x: f64,
     y: f64,
-) -> Result<(), AuthError> {
-    update_node_position_core(state.inner(), &node_type, &node_id, x, y)
+) -> napi::Result<()> {
+    update_node_position_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id, x, y)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_get_edges(
-    state: tauri::State<'_, Mutex<AppState>>,
+#[napi]
+pub fn cmd_get_edges(
     node_type: Option<String>,
     node_id: Option<String>,
-) -> Result<Vec<Edge>, AuthError> {
-    get_edges_core(state.inner(), node_type, node_id)
+) -> napi::Result<Vec<Edge>> {
+    get_edges_core(&crate::state::GLOBAL_APP_STATE, node_type, node_id)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_create_edge(
-    state: tauri::State<'_, Mutex<AppState>>,
-    edge: EdgeCreatePayload,
-) -> Result<Edge, AuthError> {
-    create_edge_core(state.inner(), edge)
+#[napi]
+pub fn cmd_create_edge(edge: EdgeCreatePayload) -> napi::Result<Edge> {
+    create_edge_core(&crate::state::GLOBAL_APP_STATE, edge).map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_update_edge(
-    state: tauri::State<'_, Mutex<AppState>>,
-    edge_id: String,
-    payload: EdgeUpdatePayload,
-) -> Result<Edge, AuthError> {
-    update_edge_core(state.inner(), &edge_id, payload)
+#[napi]
+pub fn cmd_update_edge(edge_id: String, payload: EdgeUpdatePayload) -> napi::Result<Edge> {
+    update_edge_core(&crate::state::GLOBAL_APP_STATE, &edge_id, payload)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_delete_edge(
-    state: tauri::State<'_, Mutex<AppState>>,
-    edge_id: String,
-) -> Result<(), AuthError> {
-    delete_edge_core(state.inner(), &edge_id)
+#[napi]
+pub fn cmd_delete_edge(edge_id: String) -> napi::Result<()> {
+    delete_edge_core(&crate::state::GLOBAL_APP_STATE, &edge_id).map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_get_subgraph(
-    state: tauri::State<'_, Mutex<AppState>>,
+#[napi]
+pub fn cmd_get_subgraph(
     node_type: String,
     node_id: String,
     depth: Option<u32>,
-) -> Result<serde_json::Value, AuthError> {
-    get_subgraph_core(state.inner(), &node_type, &node_id, depth)
+) -> napi::Result<serde_json::Value> {
+    get_subgraph_core(&crate::state::GLOBAL_APP_STATE, &node_type, &node_id, depth)
+        .map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_search(
-    state: tauri::State<'_, Mutex<AppState>>,
-    query: String,
-    types: Option<Vec<String>>,
-) -> Result<Vec<GraphNode>, AuthError> {
-    search_core(state.inner(), &query, types)
+#[napi]
+pub fn cmd_search(query: String, types: Option<Vec<String>>) -> napi::Result<Vec<GraphNode>> {
+    search_core(&crate::state::GLOBAL_APP_STATE, &query, types).map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_generate_password() -> Result<serde_json::Value, AuthError> {
-    generate_password_core()
-}
-
-#[tauri::command]
-pub async fn cmd_export_save_file(path: String, contents: Vec<u8>) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|e| format!("Failed to write file to '{}': {}", path, e))
+#[napi]
+pub fn cmd_generate_password() -> napi::Result<serde_json::Value> {
+    generate_password_core().map_err(napi::Error::from)
 }
 
 // =========================================================================

@@ -25,18 +25,28 @@ lattice.db
 lattice.salt
 app.db
 
-# Rust / Tauri Artifacts
+# Legacy Rust / Tauri Artifacts (Retained for clean historical branches)
 src-tauri/target/
 target/
 **/*.rs.bk
 src-tauri/gen/
 *.pdb
 
+# Electron & Native Addon Artifacts
+*.node
+.clinic/
+out/
+release/
+build/
+*.pfx
+*.cer
+
 # Node / Frontend Artifacts
 node_modules/
 frontend/node_modules/
 dist/
 frontend/dist/
+dist-electron/
 dist-ssr/
 *.local
 

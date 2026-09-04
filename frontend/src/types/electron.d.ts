@@ -1,0 +1,55 @@
+import { NodeType, GraphData, GraphNode, Edge, EdgeRelation } from './graph';
+
+export interface EdgeCreatePayload {
+  source_type: NodeType;
+  source_id: string;
+  target_type: NodeType;
+  target_id: string;
+  relation: EdgeRelation;
+  notes?: string;
+}
+
+export interface EdgeUpdatePayload {
+  relation?: EdgeRelation;
+  notes?: string;
+}
+
+export interface ExportSaveResult {
+  canceled: boolean;
+  filePath?: string;
+}
+
+export interface LatticeApi {
+  // Setup & Auth
+  cmdAuthSetup: (password: string) => Promise<void>;
+  cmdAuthUnlock: (password: string) => Promise<void>;
+  cmdAuthLock: () => void | Promise<void>;
+  cmdAuthStatus: () => any | Promise<any>;
+  cmdUpdateSettings: (autoLockMinutes: number) => void | Promise<void>;
+  cmdGeneratePassword: () => any | Promise<any>;
+
+  // Graph / Nodes / Edges / Search
+  cmdGetGraph: () => GraphData | Promise<GraphData>;
+  cmdGetNodes: (nodeType: string, skip?: number, limit?: number) => GraphNode[] | Promise<GraphNode[]>;
+  cmdGetNode: (nodeType: string, nodeId: string) => GraphNode | Promise<GraphNode>;
+  cmdCreateNode: (nodeType: string, data: any) => GraphNode | Promise<GraphNode>;
+  cmdUpdateNode: (nodeType: string, nodeId: string, data: any) => GraphNode | Promise<GraphNode>;
+  cmdDeleteNode: (nodeType: string, nodeId: string) => void | Promise<void>;
+  cmdGetNodePassword: (nodeType: string, nodeId: string) => string | null | Promise<string | null>;
+  cmdUpdateNodePosition: (nodeType: string, nodeId: string, x: number, y: number) => void | Promise<void>;
+  cmdGetEdges: (nodeType?: string, nodeId?: string) => Edge[] | Promise<Edge[]>;
+  cmdCreateEdge: (edge: EdgeCreatePayload) => Edge | Promise<Edge>;
+  cmdUpdateEdge: (edgeId: string, payload: EdgeUpdatePayload) => Edge | Promise<Edge>;
+  cmdDeleteEdge: (edgeId: string) => void | Promise<void>;
+  cmdGetSubgraph: (nodeType: string, nodeId: string, depth?: number) => { edges: any[] } | Promise<{ edges: any[] }>;
+  cmdSearch: (query: string, types?: string[]) => GraphNode[] | Promise<GraphNode[]>;
+
+  // Export
+  exportSaveFile: (content: string, defaultFilename: string) => Promise<ExportSaveResult>;
+}
+
+declare global {
+  interface Window {
+    api?: LatticeApi;
+  }
+}
