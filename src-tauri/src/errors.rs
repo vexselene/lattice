@@ -30,3 +30,10 @@ pub enum AuthError {
     #[error("Database error: {0}")]
     Database(String),
 }
+
+impl From<AuthError> for napi::Error {
+    fn from(err: AuthError) -> Self {
+        let json_str = serde_json::to_string(&err).unwrap_or_else(|_| format!("{{\"error\":\"{}\"}}", err));
+        napi::Error::from_reason(json_str)
+    }
+}

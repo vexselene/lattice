@@ -1,12 +1,24 @@
 {
   "name": "lattice",
+  "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
+  "napi": {
+    "name": "lattice_native",
+    "triples": {
+      "defaults": true,
+      "additional": []
+    }
+  },
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "tauri": "tauri"
+    "build:native": "napi build --platform --cargo-cwd src-tauri --dts native/index.d.ts --js native/index.js native",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "start": "electron --no-sandbox ."
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.2.0"
+    "@napi-rs/cli": "^2.18.4",
+    "@tauri-apps/cli": "^2.2.0",
+    "electron": "^30.5.1"
   }
 }

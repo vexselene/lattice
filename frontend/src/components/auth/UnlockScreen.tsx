@@ -69,19 +69,15 @@ export const UnlockScreen = () => {
       let errorKey = '';
       let details: any = null;
 
-      if (err && typeof err === 'object' && 'error' in err) {
-        errorKey = err.error;
-        details = err.details;
-      } else if (typeof err === 'string') {
-        try {
-          const parsed = JSON.parse(err);
-          if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-            errorKey = parsed.error;
-            details = parsed.details;
-          }
-        } catch {
-          errorKey = err;
+      let rawMsg = typeof err === 'string' ? err : err?.message || '';
+      try {
+        const parsed = typeof err === 'object' && err !== null && 'error' in err ? err : JSON.parse(rawMsg);
+        if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+          errorKey = parsed.error;
+          details = parsed.details;
         }
+      } catch {
+        errorKey = rawMsg;
       }
 
       switch (errorKey) {

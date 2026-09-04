@@ -1,4 +1,15 @@
-import { invoke } from '@tauri-apps/api/core';
+declare global {
+  interface Window {
+    api?: {
+      cmdAuthSetup: (password: string) => Promise<void>;
+      cmdAuthUnlock: (password: string) => Promise<void>;
+      cmdAuthLock: () => void | Promise<void>;
+      cmdAuthStatus: () => any | Promise<any>;
+      cmdUpdateSettings: (autoLockMinutes: number) => void | Promise<void>;
+      cmdGeneratePassword: () => any | Promise<any>;
+    };
+  }
+}
 
 export interface AuthStatus {
   is_setup: boolean;
@@ -7,21 +18,37 @@ export interface AuthStatus {
 }
 
 export const setupAuth = async (password: string): Promise<void> => {
-  await invoke('cmd_auth_setup', { password });
+  if (window.api?.cmdAuthSetup) {
+    await window.api.cmdAuthSetup(password);
+  }
 };
 
 export const unlockAuth = async (password: string): Promise<void> => {
-  await invoke('cmd_auth_unlock', { password });
+  if (window.api?.cmdAuthUnlock) {
+    await window.api.cmdAuthUnlock(password);
+  }
 };
 
 export const lockAuth = async (): Promise<void> => {
-  await invoke('cmd_auth_lock');
+  if (window.api?.cmdAuthLock) {
+    await window.api.cmdAuthLock();
+  }
 };
 
 export const checkStatus = async (): Promise<AuthStatus> => {
-  return await invoke<AuthStatus>('cmd_auth_status');
+  if (window.api?.cmdAuthStatus) {
+    const res = await window.api.cmdAuthStatus();
+    return {
+      is_setup: res.isSetup ?? res.is_setup ?? false,
+      unlocked: res.unlocked ?? false,
+      auto_lock_minutes: res.autoLockMinutes ?? res.auto_lock_minutes ?? 15,
+    };
+  }
+  return { is_setup: false, unlocked: false, auto_lock_minutes: 15 };
 };
 
 export const updateSettings = async (autoLockMinutes: number): Promise<void> => {
-  await invoke('cmd_update_settings', { autoLockMinutes });
+  if (window.api?.cmdUpdateSettings) {
+    await window.api.cmdUpdateSettings(autoLockMinutes);
+  }
 };

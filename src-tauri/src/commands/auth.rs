@@ -178,28 +178,28 @@ pub async fn auth_unlock_core(
 // Tauri Commands
 // =========================================================================
 
-#[tauri::command]
-pub async fn cmd_auth_setup(
-    app: tauri::AppHandle,
-    gate: tauri::State<'_, tokio::sync::Mutex<()>>,
-    password: String,
-) -> Result<(), AuthError> {
-    let _gate_lock = gate.lock().await;
-    let db_file = paths::db_path(&app)?;
-    let salt_file = paths::salt_path(&app)?;
-    auth_setup_core(&db_file, &salt_file, &password).await
+use napi_derive::napi;
+
+#[napi]
+pub fn init_app(data_dir: Option<String>) {
+    if let Some(dir) = data_dir {
+        paths::set_data_dir(std::path::PathBuf::from(dir));
+    }
 }
 
 static UNLOCK_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
-#[tauri::command]
-pub async fn cmd_auth_unlock(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Mutex<AppState>>,
-    gate: tauri::State<'_, tokio::sync::Mutex<()>>,
-    password: String,
-) -> Result<(), AuthError> {
-    let _gate_lock = gate.lock().await;
+#[napi]
+pub async fn cmd_auth_setup(password: String) -> napi::Result<()> {
+    let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
+    let db_file = paths::db_path().map_err(napi::Error::from)?;
+    let salt_file = paths::salt_path().map_err(napi::Error::from)?;
+    auth_setup_core(&db_file, &salt_file, &password).await.map_err(napi::Error::from)
+}
+
+#[napi]
+pub async fn cmd_auth_unlock(password: String) -> napi::Result<()> {
+    let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
 
     let n = UNLOCK_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let enter_ts = std::time::SystemTime::now()
@@ -208,9 +208,9 @@ pub async fn cmd_auth_unlock(
         .as_millis();
     eprintln!("[unlock #{}] ENTER at {}", n, enter_ts);
 
-    let db_file = paths::db_path(&app)?;
-    let salt_file = paths::salt_path(&app)?;
-    let res = auth_unlock_core(&db_file, &salt_file, state.inner(), &password).await;
+    let db_file = paths::db_path().map_err(napi::Error::from)?;
+    let salt_file = paths::salt_path().map_err(napi::Error::from)?;
+    let res = auth_unlock_core(&db_file, &salt_file, &crate::state::GLOBAL_APP_STATE, &password).await;
 
     let exit_ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -221,26 +221,27 @@ pub async fn cmd_auth_unlock(
         Err(e) => format!("err({:?})", e),
     };
     eprintln!("[unlock #{}] EXIT at {}, result={}", n, exit_ts, res_label);
-    res
+    res.map_err(napi::Error::from)
 }
 
-#[tauri::command]
-pub async fn cmd_auth_lock(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), AuthError> {
-    let mut state_guard = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+#[napi]
+pub fn cmd_auth_lock() -> napi::Result<()> {
+    let mut state_guard = crate::state::GLOBAL_APP_STATE
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
     state_guard.db = None;
     state_guard.encryption_key = None;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn cmd_auth_status(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Mutex<AppState>>,
-) -> Result<AuthStatus, AuthError> {
-    let db_file = paths::db_path(&app)?;
+#[napi]
+pub fn cmd_auth_status() -> napi::Result<AuthStatus> {
+    let db_file = paths::db_path().map_err(napi::Error::from)?;
     let is_setup = db_file.exists();
 
-    let state_guard = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+    let state_guard = crate::state::GLOBAL_APP_STATE
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
     let unlocked = state_guard.db.is_some();
 
     let auto_lock_minutes = if let Some(ref conn) = state_guard.db {
@@ -263,12 +264,11 @@ pub async fn cmd_auth_status(
     })
 }
 
-#[tauri::command]
-pub async fn cmd_update_settings(
-    state: tauri::State<'_, Mutex<AppState>>,
-    auto_lock_minutes: i32,
-) -> Result<(), AuthError> {
-    let state_guard = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+#[napi]
+pub fn cmd_update_settings(auto_lock_minutes: i32) -> napi::Result<()> {
+    let state_guard = crate::state::GLOBAL_APP_STATE
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
     let conn = state_guard.db.as_ref().ok_or(AuthError::NotSetup)?;
 
     conn.execute(

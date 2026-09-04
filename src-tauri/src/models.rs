@@ -87,6 +87,9 @@ pub struct AppSetting {
     pub value: String,
 }
 
+use napi_derive::napi;
+
+#[napi(object)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthStatus {
     pub is_setup: bool,

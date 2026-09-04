@@ -1,7 +1,14 @@
 //! Global application state and in-memory rate limiting / backoff tracker.
 
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
+
+pub static GLOBAL_APP_STATE: LazyLock<Mutex<AppState>> =
+    LazyLock::new(|| Mutex::new(AppState::new()));
+
+pub static GLOBAL_UNLOCK_GATE: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum BackoffError {
