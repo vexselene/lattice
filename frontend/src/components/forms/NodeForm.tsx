@@ -17,12 +17,9 @@ export const NodeForm: React.FC<NodeFormProps> = ({ isOpen, onClose, initialNode
   const [type, setType] = useState<NodeType>(initialNode?.type || initialType || 'email');
   const [formData, setFormData] = useState<any>({});
   
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   useEffect(() => {
-    setErrorMessage(null);
     if (initialNode) {
-      setType(initialNode.type as NodeType);
+      setType(initialNode.type);
       setFormData(initialNode.data);
     } else {
       setType(initialType || 'email');
@@ -33,40 +30,26 @@ export const NodeForm: React.FC<NodeFormProps> = ({ isOpen, onClose, initialNode
   if (!isOpen) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setErrorMessage(null);
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      setErrorMessage(null);
       if (initialNode) {
         await updateNode(type, initialNode.data.id, formData);
       } else {
-        const count = useGraphStore.getState().nodes.length;
-        const payload = {
-          ...formData,
-          position_x: 120 + (count % 8) * 80,
-          position_y: 120 + (count % 8) * 60,
-        };
-        await createNode(type, payload);
+        await createNode(type, formData);
       }
       await fetchGraph();
       onClose();
-    } catch (err: any) {
-      console.error('[NodeForm Submit Error]', err);
-      const msg = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
-      setErrorMessage(msg);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 nodrag nopan"
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-w-md w-full overflow-hidden flex flex-col max-h-full">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -76,11 +59,6 @@ export const NodeForm: React.FC<NodeFormProps> = ({ isOpen, onClose, initialNode
         </div>
         
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex flex-col gap-4">
-          {errorMessage && (
-            <div className="p-2 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs leading-tight">
-              {errorMessage}
-            </div>
-          )}
           {!initialNode && (
             <label className="flex flex-col gap-1">
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Type</span>

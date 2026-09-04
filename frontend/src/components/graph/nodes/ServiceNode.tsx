@@ -24,8 +24,6 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
 
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
   const [isEditing, setIsEditing] = useState((data as any).isEditing || false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const [editData, setEditData] = useState({
     name: data.name || '',
     category: data.category || '',
@@ -59,7 +57,6 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setErrorMessage(null);
     setIsEditing(true);
     setIsExpanded(true);
   };
@@ -81,40 +78,21 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      setErrorMessage(null);
-      if (!editData.name.trim()) {
-        setErrorMessage('Service name is required.');
-        return;
-      }
-
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
 
-      // Compute sensible spawn position
-      const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-      let spawnPos = savedPositions[data.id] || {
-        x: (data as any).position_x,
-        y: (data as any).position_y,
-      };
-      if (typeof spawnPos.x !== 'number' || typeof spawnPos.y !== 'number' || (spawnPos.x === 0 && spawnPos.y === 0)) {
-        const count = useGraphStore.getState().nodes.length;
-        spawnPos = {
-          x: 100 + (count % 8) * 80,
-          y: 100 + (count % 8) * 60,
-        };
-      }
-
       if (isNew) {
         const res = await createNode('service', {
-          name: editData.name.trim(),
+          name: editData.name,
           category: editData.category || undefined,
-          url: editData.url || undefined,
-          position_x: spawnPos.x,
-          position_y: spawnPos.y,
+          url: editData.url || undefined
         });
-        savedPositions[res.id] = spawnPos;
-        delete savedPositions[data.id];
-        localStorage.setItem('node_positions', JSON.stringify(savedPositions));
+        const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
+        if (savedPositions[data.id]) {
+          savedPositions[res.id] = savedPositions[data.id];
+          delete savedPositions[data.id];
+          localStorage.setItem('node_positions', JSON.stringify(savedPositions));
+        }
         removeTempNode(data.id);
         
         if ((data as any).pendingConnection) {
@@ -129,23 +107,20 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
         }
       } else {
         await updateNode('service', data.id, {
-          name: editData.name.trim(),
+          name: editData.name,
           category: editData.category || undefined,
           url: editData.url || undefined
         });
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err: any) {
-      console.error('[ServiceNode Save Error]', err);
-      const msg = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
-      setErrorMessage(msg);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setErrorMessage(null);
     if ((data as any).isEditing) {
       removeTempNode(data.id);
     } else {
@@ -203,10 +178,8 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
         )}
       >
         <div
-          className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[150px] max-w-[240px] text-xs nodrag nopan"
+          className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[120px] max-w-[220px] text-xs"
           onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">
             <span className="px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-widest">
@@ -233,41 +206,12 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
 
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
-              {errorMessage && (
-                <div className="p-1.5 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] leading-tight break-words">
-                  {errorMessage}
-                </div>
-              )}
-              <input
-                value={editData.name}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, name: e.target.value });
-                }}
-                placeholder="Service Name"
-                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
-              <input
-                value={editData.category}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, category: e.target.value });
-                }}
-                placeholder="Category"
-                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
-              <input
-                value={editData.url}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, url: e.target.value });
-                }}
-                placeholder="URL"
-                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
+              <input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} placeholder="Service Name" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
+              <input value={editData.category} onChange={(e) => setEditData({ ...editData, category: e.target.value })} placeholder="Category" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
+              <input value={editData.url} onChange={(e) => setEditData({ ...editData, url: e.target.value })} placeholder="URL" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
               <div className="flex gap-2 justify-end mt-2">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors nodrag nopan">Cancel</button>
-                <button onClick={handleSave} className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded font-medium transition-colors shadow-sm nodrag nopan">Save</button>
+                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
+                <button onClick={handleSave} className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded font-medium transition-colors shadow-sm">Save</button>
               </div>
             </div>
           ) : (

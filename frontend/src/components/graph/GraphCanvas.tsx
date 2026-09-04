@@ -18,7 +18,6 @@ import { Mail, User, Server, Smartphone } from 'lucide-react';
 
 import { useGraphStore } from '../../stores/graphStore';
 import { useUIStore } from '../../stores/uiStore';
-import { updateNodePosition } from '../../api/nodes';
 import EmailNode from './nodes/EmailNode';
 import AccountNode from './nodes/AccountNode';
 import ServiceNode from './nodes/ServiceNode';
@@ -240,10 +239,7 @@ const GraphInner = () => {
           ...(n.data as any), 
           isModalOpen,
         },
-        position: savedPositions[n.data.id] || {
-          x: (n.data as any).position_x ?? 0,
-          y: (n.data as any).position_y ?? 0,
-        },
+        position: savedPositions[n.data.id] || { x: 0, y: 0 },
         hidden: isHidden,
       };
     });
@@ -384,14 +380,6 @@ const GraphInner = () => {
   }, [nodes, proximityTarget, draggingNode, storeEdges]);
 
   const onNodeDragStop = useCallback((_: any, node: FlowNode) => {
-    if (node && node.id) {
-      const matchingStoreNode = storeNodes.find(n => n.data.id === node.id);
-      const nodeType = (matchingStoreNode?.type || node.type || 'account') as string;
-      updateNodePosition(nodeType, node.id, node.position.x, node.position.y).catch((err) => {
-        console.error('Failed to persist node position', err);
-      });
-    }
-
     if (proximityTarget && isEditMode) {
       const targetNode = storeNodes.find(n => n.data.id === proximityTarget);
       if (targetNode) {
@@ -622,8 +610,6 @@ const GraphInner = () => {
         id: tempId, 
         isEditing: true, 
         isExpanded: true,
-        position_x: position.x,
-        position_y: position.y,
         pendingConnection: {
           sourceId: sourceNode.data.id,
           sourceType: sourceNode.type
@@ -655,59 +641,12 @@ const GraphInner = () => {
 
     const newNode: any = {
       type,
-      data: {
-        id: tempId,
-        isEditing: true,
-        isExpanded: true,
-        position_x: position.x,
-        position_y: position.y,
-      },
+      data: { id: tempId, isEditing: true, isExpanded: true },
     };
     
     useGraphStore.getState().setActiveChain(null);
     useGraphStore.getState().addTempNode(newNode);
   }, [screenToFlowPosition]);
-
-  // Handle spawn-node event triggered by clicking speed-dial FAB buttons
-  useEffect(() => {
-    const handleSpawnNode = (e: any) => {
-      const type = e.detail?.type;
-      if (!type) return;
-
-      const flowCenter = screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      });
-
-      const count = storeNodes.length;
-      const position = {
-        x: flowCenter.x + (count % 8) * 40 - 80,
-        y: flowCenter.y + (count % 8) * 35 - 60,
-      };
-
-      const tempId = `temp-${Date.now()}`;
-      const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-      savedPositions[tempId] = position;
-      localStorage.setItem('node_positions', JSON.stringify(savedPositions));
-
-      const newNode: any = {
-        type,
-        data: {
-          id: tempId,
-          isEditing: true,
-          isExpanded: true,
-          position_x: position.x,
-          position_y: position.y,
-        },
-      };
-
-      useGraphStore.getState().setActiveChain(null);
-      useGraphStore.getState().addTempNode(newNode);
-    };
-
-    window.addEventListener('spawn-node', handleSpawnNode);
-    return () => window.removeEventListener('spawn-node', handleSpawnNode);
-  }, [screenToFlowPosition, storeNodes.length]);
 
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -801,11 +740,8 @@ const GraphInner = () => {
 
       {connectMenu && (
         <div
-          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-2 w-48 flex flex-col gap-1 nodrag nopan"
+          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-2 w-48 flex flex-col gap-1"
           style={{ top: connectMenu.y, left: connectMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-2 py-1 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 mb-1">
             Create & Connect

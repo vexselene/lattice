@@ -25,8 +25,6 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
 
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
   const [isEditing, setIsEditing] = useState((data as any).isEditing || false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const [editData, setEditData] = useState({
     address: data.address || '',
     provider: data.provider || '',
@@ -60,7 +58,6 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setErrorMessage(null);
     setIsEditing(true);
     setIsExpanded(true);
   };
@@ -83,40 +80,21 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      setErrorMessage(null);
-      if (!editData.address.trim()) {
-        setErrorMessage('Email address is required.');
-        return;
-      }
-
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
 
-      // Compute sensible spawn position
-      const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-      let spawnPos = savedPositions[data.id] || {
-        x: (data as any).position_x,
-        y: (data as any).position_y,
-      };
-      if (typeof spawnPos.x !== 'number' || typeof spawnPos.y !== 'number' || (spawnPos.x === 0 && spawnPos.y === 0)) {
-        const count = useGraphStore.getState().nodes.length;
-        spawnPos = {
-          x: 120 + (count % 8) * 80,
-          y: 120 + (count % 8) * 60,
-        };
-      }
-
       if (isNew) {
         const res = await createNode('email', {
-          address: editData.address.trim(),
+          address: editData.address,
           provider: editData.provider || undefined,
-          password_raw: editData.password || undefined,
-          position_x: spawnPos.x,
-          position_y: spawnPos.y,
+          password_raw: editData.password || undefined
         });
-        savedPositions[res.id] = spawnPos;
-        delete savedPositions[data.id];
-        localStorage.setItem('node_positions', JSON.stringify(savedPositions));
+        const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
+        if (savedPositions[data.id]) {
+          savedPositions[res.id] = savedPositions[data.id];
+          delete savedPositions[data.id];
+          localStorage.setItem('node_positions', JSON.stringify(savedPositions));
+        }
         removeTempNode(data.id);
         
         if ((data as any).pendingConnection) {
@@ -131,23 +109,20 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
         }
       } else {
         await updateNode('email', data.id, {
-          address: editData.address.trim(),
+          address: editData.address,
           provider: editData.provider || undefined,
           password_raw: editData.password || undefined
         });
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err: any) {
-      console.error('[EmailNode Save Error]', err);
-      const msg = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
-      setErrorMessage(msg);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setErrorMessage(null);
     if ((data as any).isEditing) {
       removeTempNode(data.id);
     } else {
@@ -208,10 +183,8 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
         )}
       >
         <div
-          className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[150px] max-w-[240px] text-xs nodrag nopan"
+          className="rounded-xl p-2 border bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1 cursor-default w-max min-w-[120px] max-w-[220px] text-xs"
           onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">
             <span className="px-2 py-0.5 rounded-full bg-indigo-100/80 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 text-[10px] font-bold uppercase tracking-widest">
@@ -238,42 +211,12 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
 
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
-              {errorMessage && (
-                <div className="p-1.5 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] leading-tight break-words">
-                  {errorMessage}
-                </div>
-              )}
-              <input
-                value={editData.address}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, address: e.target.value });
-                }}
-                placeholder="Email Address"
-                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
-              <input
-                value={editData.provider}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, provider: e.target.value });
-                }}
-                placeholder="Provider"
-                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
-              <input
-                type="password"
-                value={editData.password}
-                onChange={(e) => {
-                  setErrorMessage(null);
-                  setEditData({ ...editData, password: e.target.value });
-                }}
-                placeholder="Password (Optional)"
-                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100 nodrag nopan"
-              />
+              <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} placeholder="Email Address" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
+              <input value={editData.provider} onChange={(e) => setEditData({ ...editData, provider: e.target.value })} placeholder="Provider" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
+              <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} placeholder="Password (Optional)" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
               <div className="flex gap-2 justify-end mt-2">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors nodrag nopan">Cancel</button>
-                <button onClick={handleSave} className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium transition-colors shadow-sm nodrag nopan">Save</button>
+                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
+                <button onClick={handleSave} className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium transition-colors shadow-sm">Save</button>
               </div>
             </div>
           ) : (

@@ -91,45 +91,21 @@ function App() {
 
         {/* Speed-Dial FAB */}
         {isEditMode && (
-          <div
-            className="absolute bottom-6 left-6 flex flex-col items-center gap-3 z-20 group nodrag nopan"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
+          <div className="absolute bottom-6 left-6 flex flex-col items-center gap-3 z-20 group">
             <div className="flex flex-col gap-3 transition-all duration-300 ease-out origin-bottom scale-0 opacity-0 translate-y-8 pointer-events-none group-hover:scale-100 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto">
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'phone')}
-                onClick={() => window.dispatchEvent(new CustomEvent('spawn-node', { detail: { type: 'phone' } }))}
-                className="relative group/btn p-2.5 rounded-full shadow-md bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/50 transition-colors cursor-grab active:cursor-grabbing"
-              >
+              <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'phone')} className="relative group/btn p-2.5 rounded-full shadow-md bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <Smartphone className="w-5 h-5" />
                 <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Phone</span>
               </button>
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'service')}
-                onClick={() => window.dispatchEvent(new CustomEvent('spawn-node', { detail: { type: 'service' } }))}
-                className="relative group/btn p-2.5 rounded-full shadow-md bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50 transition-colors cursor-grab active:cursor-grabbing"
-              >
+              <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'service')} className="relative group/btn p-2.5 rounded-full shadow-md bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <Server className="w-5 h-5" />
                 <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Service</span>
               </button>
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'account')}
-                onClick={() => window.dispatchEvent(new CustomEvent('spawn-node', { detail: { type: 'account' } }))}
-                className="relative group/btn p-2.5 rounded-full shadow-md bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/50 transition-colors cursor-grab active:cursor-grabbing"
-              >
+              <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'account')} className="relative group/btn p-2.5 rounded-full shadow-md bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <User className="w-5 h-5" />
                 <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Account</span>
               </button>
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'email')}
-                onClick={() => window.dispatchEvent(new CustomEvent('spawn-node', { detail: { type: 'email' } }))}
-                className="relative group/btn p-2.5 rounded-full shadow-md bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:border-indigo-700/50 transition-colors cursor-grab active:cursor-grabbing"
-              >
+              <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'email')} className="relative group/btn p-2.5 rounded-full shadow-md bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:border-indigo-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <Mail className="w-5 h-5" />
                 <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Email</span>
               </button>

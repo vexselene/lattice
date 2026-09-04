@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { Download, X, Image as ImageIcon, Eye, Info, CheckCircle, AlertCircle } from 'lucide-react';
+import { Download, X, Image as ImageIcon, Eye, Info } from 'lucide-react';
 import clsx from 'clsx';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs';
-import { invoke } from '@tauri-apps/api/core';
 import { graphToSvgString } from '../../lib/exportRenderer';
 import { ExportMode } from '../../lib/exportSelection';
 import { useUIStore } from '../../stores/uiStore';
@@ -34,14 +31,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [edgeStyle, setEdgeStyle] = useState<'normal' | 'dashed' | 'highlighted'>('highlighted');
   const [edgeStyleApplyTo, setEdgeStyleApplyTo] = useState<'all' | 'selected' | 'nonSelected'>('all');
   const [isSaving, setIsSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sync initial mode on open
   useEffect(() => {
     if (isOpen) {
-      setSuccessMessage(null);
-      setErrorMessage(null);
       if (initialScope === 'selected' || initialScope === 'isolated') {
         setMode('isolated');
       } else if (initialScope === 'dimmed') {
@@ -87,116 +80,79 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!svgString) return;
     setIsSaving(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     try {
-      const defaultFileName = `${fileName.trim() || 'lattice-export'}.${format}`;
-      const selectedPath = await save({
-        defaultPath: defaultFileName,
-        filters: [
-          format === 'svg'
-            ? { name: 'SVG Image', extensions: ['svg'] }
-            : { name: 'PNG Image', extensions: ['png'] },
-        ],
-      });
-
-      if (!selectedPath) {
-        setIsSaving(false);
-        return;
-      }
-
       if (format === 'svg') {
-        try {
-          await writeTextFile(selectedPath, svgString);
-        } catch (fsErr) {
-          console.warn('writeTextFile failed, falling back to cmd_export_save_file:', fsErr);
-          const encoder = new TextEncoder();
-          const bytes = Array.from(encoder.encode(svgString));
-          await invoke('cmd_export_save_file', { path: selectedPath, contents: bytes });
-        }
-        setSuccessMessage(`Saved to ${selectedPath}`);
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `${fileName || 'lattice-export'}.svg`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        setIsSaving(false);
+        onClose();
       } else {
         // Off-screen canvas conversion without attaching to the live React Flow DOM
-        await new Promise<void>((resolve, reject) => {
-          const img = new Image();
-          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-          const blobUrl = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(svgBlob);
 
-          img.onload = async () => {
-            try {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(svgString, 'image/svg+xml');
-              const svgEl = doc.querySelector('svg');
-              const baseWidth = parseFloat(svgEl?.getAttribute('width') || '800');
-              const baseHeight = parseFloat(svgEl?.getAttribute('height') || '600');
+        img.onload = () => {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgString, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            const baseWidth = parseFloat(svgEl?.getAttribute('width') || '800');
+            const baseHeight = parseFloat(svgEl?.getAttribute('height') || '600');
 
-              const canvas = document.createElement('canvas');
-              canvas.width = baseWidth * scale;
-              canvas.height = baseHeight * scale;
-              const ctx = canvas.getContext('2d');
+            const canvas = document.createElement('canvas');
+            canvas.width = baseWidth * scale;
+            canvas.height = baseHeight * scale;
+            const ctx = canvas.getContext('2d');
 
-              if (!ctx) throw new Error('Could not get 2D canvas context');
+            if (ctx) {
               ctx.imageSmoothingEnabled = true;
               ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-              const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
-              if (!blob) throw new Error('Failed to create PNG blob from canvas');
-
-              const buffer = await blob.arrayBuffer();
-              const uint8 = new Uint8Array(buffer);
-
-              try {
-                await writeFile(selectedPath, uint8);
-              } catch (fsErr) {
-                console.warn('writeFile failed, falling back to cmd_export_save_file:', fsErr);
-                await invoke('cmd_export_save_file', {
-                  path: selectedPath,
-                  contents: Array.from(uint8),
-                });
-              }
-              resolve();
-            } catch (e) {
-              reject(e);
-            } finally {
-              URL.revokeObjectURL(blobUrl);
+              const pngUrl = canvas.toDataURL('image/png');
+              const link = document.createElement('a');
+              link.download = `${fileName || 'lattice-export'}.png`;
+              link.href = pngUrl;
+              link.click();
             }
-          };
-
-          img.onerror = () => {
+          } catch (e) {
+            console.error('PNG render error:', e);
+          } finally {
             URL.revokeObjectURL(blobUrl);
-            reject(new Error('Failed to rasterize SVG onto canvas'));
-          };
+            setIsSaving(false);
+            onClose();
+          }
+        };
 
-          img.src = blobUrl;
-        });
+        img.onerror = () => {
+          console.error('Failed to load SVG into image for canvas rasterization');
+          URL.revokeObjectURL(blobUrl);
+          setIsSaving(false);
+        };
 
-        setSuccessMessage(`Saved to ${selectedPath}`);
+        img.src = blobUrl;
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Export save error:', err);
-      const msg = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
-      setErrorMessage(`Failed to save export: ${msg}`);
-    } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4 nodrag nopan"
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
       <div
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col nodrag nopan"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
@@ -211,37 +167,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Feedback Banners */}
-        {successMessage && (
-          <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-sm">
-            <div className="flex items-center gap-2 truncate">
-              <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span className="font-medium truncate">{successMessage}</span>
-            </div>
-            <button
-              onClick={() => setSuccessMessage(null)}
-              className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="mx-6 mt-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center justify-between gap-2 shadow-sm">
-            <div className="flex items-center gap-2 truncate">
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-              <span className="font-medium truncate">{errorMessage}</span>
-            </div>
-            <button
-              onClick={() => setErrorMessage(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
 
         {/* Content Body: Options on Left, Live SVG Preview on Right */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 p-6 overflow-y-auto">
@@ -571,31 +496,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center gap-3">
-          <div className="text-xs text-slate-500 truncate max-w-[50%]">
-            {successMessage ? (
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium truncate flex items-center gap-1.5">
-                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500" />
-                {successMessage}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
-            >
-              {successMessage ? 'Done' : 'Cancel'}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!svgString || isSaving}
-              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              {isSaving ? 'Saving...' : `Save (${format.toUpperCase()})`}
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end items-center gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!svgString || isSaving}
+            className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            {isSaving ? 'Exporting...' : `Save (${format.toUpperCase()})`}
+          </button>
         </div>
       </div>
     </div>
