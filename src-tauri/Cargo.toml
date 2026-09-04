@@ -24,3 +24,7 @@ aes-gcm = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 rand = "0.8"
 base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"

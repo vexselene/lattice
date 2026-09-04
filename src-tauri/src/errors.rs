@@ -9,11 +9,20 @@ pub enum AuthError {
     #[error("Application is not setup")]
     NotSetup,
 
+    #[error("Application is locked or not unlocked")]
+    NotUnlocked,
+
     #[error("Invalid password")]
     InvalidPassword,
 
     #[error("Rate limited: please wait {wait_remaining_ms}ms before trying again")]
     RateLimited { wait_remaining_ms: u64 },
+
+    #[error("Entity not found: {0}")]
+    NotFound(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
 
     #[error("Filesystem I/O error: {0}")]
     Io(String),

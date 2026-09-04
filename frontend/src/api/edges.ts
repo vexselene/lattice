@@ -1,9 +1,8 @@
-import { apiClient } from './client';
+import { invoke } from '@tauri-apps/api/core';
 import { Edge, EdgeRelation, NodeType } from '../types/graph';
 
-export const getEdges = async (node_type?: NodeType, node_id?: string) => {
-  const { data } = await apiClient.get('/edges', { params: { node_type, node_id } });
-  return data as Edge[];
+export const getEdges = async (node_type?: NodeType, node_id?: string): Promise<Edge[]> => {
+  return await invoke<Edge[]>('cmd_get_edges', { nodeType: node_type, nodeId: node_id });
 };
 
 export const createEdge = async (edgeData: {
@@ -13,17 +12,18 @@ export const createEdge = async (edgeData: {
   target_id: string;
   relation: EdgeRelation;
   notes?: string;
-}) => {
-  const { data } = await apiClient.post('/edges', edgeData);
-  return data as Edge;
+}): Promise<Edge> => {
+  return await invoke<Edge>('cmd_create_edge', { edge: edgeData });
 };
 
-export const updateEdge = async (id: string, edgeData: { relation?: EdgeRelation; notes?: string }) => {
-  const { data } = await apiClient.put(`/edges/${id}`, edgeData);
-  return data as Edge;
+export const updateEdge = async (
+  id: string,
+  edgeData: { relation?: EdgeRelation; notes?: string }
+): Promise<Edge> => {
+  return await invoke<Edge>('cmd_update_edge', { edgeId: id, payload: edgeData });
 };
 
-export const deleteEdge = async (id: string) => {
-  const { data } = await apiClient.delete(`/edges/${id}`);
-  return data;
+export const deleteEdge = async (id: string): Promise<{ success: boolean }> => {
+  await invoke('cmd_delete_edge', { edgeId: id });
+  return { success: true };
 };

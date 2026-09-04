@@ -94,6 +94,74 @@ pub struct AuthStatus {
     pub auto_lock_minutes: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NodeType {
+    Email,
+    Phone,
+    Service,
+    Account,
+}
+
+impl NodeType {
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "email" | "emails" => Ok(NodeType::Email),
+            "phone" | "phones" => Ok(NodeType::Phone),
+            "service" | "services" => Ok(NodeType::Service),
+            "account" | "accounts" => Ok(NodeType::Account),
+            other => Err(format!("Invalid node type: '{}'", other)),
+        }
+    }
+
+    pub fn table_name(&self) -> &'static str {
+        match self {
+            NodeType::Email => "emails",
+            NodeType::Phone => "phones",
+            NodeType::Service => "services",
+            NodeType::Account => "accounts",
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeType::Email => "email",
+            NodeType::Phone => "phone",
+            NodeType::Service => "service",
+            NodeType::Account => "account",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GraphNode {
+    #[serde(rename = "type")]
+    pub node_type: String,
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GraphData {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<Edge>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EdgeCreatePayload {
+    pub source_type: String,
+    pub source_id: String,
+    pub target_type: String,
+    pub target_id: String,
+    pub relation: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EdgeUpdatePayload {
+    pub relation: Option<String>,
+    pub notes: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

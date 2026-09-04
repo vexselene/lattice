@@ -1,12 +1,11 @@
-import { apiClient } from './client';
+import { invoke } from '@tauri-apps/api/core';
 import { SearchResult, NodeType } from '../types/graph';
 
-export const search = async (q: string, types?: NodeType[]) => {
-  const { data } = await apiClient.get('/search', { params: { q, 'types[]': types } });
-  return data.results as SearchResult[];
+export const search = async (q: string, types?: NodeType[]): Promise<SearchResult[]> => {
+  return await invoke<SearchResult[]>('cmd_search', { query: q, types });
 };
 
-export const generatePassword = async () => {
-  const { data } = await apiClient.post('/utils/generate-password');
-  return data.password as string;
+export const generatePassword = async (): Promise<string> => {
+  const res = await invoke<{ password: string }>('cmd_generate_password');
+  return res.password;
 };
