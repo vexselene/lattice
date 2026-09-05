@@ -10,7 +10,7 @@ import NodeDetailPanel from './components/sidebar/NodeDetailPanel';
 import EdgeForm from './components/forms/EdgeForm';
 import ConfirmDialog from './components/shared/ConfirmDialog';
 import { Edge, GraphNode } from './types/graph';
-import { Plus, Mail, User, Server, Smartphone } from 'lucide-react';
+import { Plus, Mail, User, Smartphone } from 'lucide-react';
 
 function App() {
   const { isUnlocked } = useAuthStore();
@@ -96,10 +96,6 @@ function App() {
               <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'phone')} className="relative group/btn p-2.5 rounded-full shadow-md bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <Smartphone className="w-5 h-5" />
                 <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Phone</span>
-              </button>
-              <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'service')} className="relative group/btn p-2.5 rounded-full shadow-md bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50 transition-colors cursor-grab active:cursor-grabbing">
-                <Server className="w-5 h-5" />
-                <span className="absolute left-full ml-3 px-2 py-1 rounded bg-slate-800 text-white text-[11px] font-medium tracking-wide opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Service</span>
               </button>
               <button draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow/type', 'account')} className="relative group/btn p-2.5 rounded-full shadow-md bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-700/50 transition-colors cursor-grab active:cursor-grabbing">
                 <User className="w-5 h-5" />

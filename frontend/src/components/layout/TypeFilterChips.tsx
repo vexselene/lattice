@@ -9,7 +9,6 @@ import clsx from 'clsx';
 const TYPES: { id: NodeType; label: string; color: string }[] = [
   { id: 'email', label: 'Email', color: 'hover:border-[#4F46E5] hover:text-[#4F46E5]' },
   { id: 'account', label: 'Account', color: 'hover:border-[#7C3AED] hover:text-[#7C3AED]' },
-  { id: 'service', label: 'Service', color: 'hover:border-[#059669] hover:text-[#059669]' },
   { id: 'phone', label: 'Phone', color: 'hover:border-[#EA580C] hover:text-[#EA580C]' },
 ];
 

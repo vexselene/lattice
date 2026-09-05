@@ -132,7 +132,6 @@ export const NodeForm: React.FC<NodeFormProps> = ({ isOpen, onClose, initialNode
               >
                 <option value="email">Email</option>
                 <option value="account">Account</option>
-                <option value="service">Service</option>
                 <option value="phone">Phone</option>
               </select>
             </label>
@@ -151,14 +150,6 @@ export const NodeForm: React.FC<NodeFormProps> = ({ isOpen, onClose, initialNode
             <>
               <input name="number" value={formData.number || ''} onChange={handleChange} placeholder="Phone Number" required className="p-2 border rounded bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
               <input name="carrier" value={formData.carrier || ''} onChange={handleChange} placeholder="Carrier" className="p-2 border rounded bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
-            </>
-          )}
-
-          {type === 'service' && (
-            <>
-              <input name="name" value={formData.name || ''} onChange={handleChange} placeholder="Service Name" required className="p-2 border rounded bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
-              <input name="url" value={formData.url || ''} onChange={handleChange} placeholder="URL" className="p-2 border rounded bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
-              <input name="category" value={formData.category || ''} onChange={handleChange} placeholder="Category" className="p-2 border rounded bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
             </>
           )}
 

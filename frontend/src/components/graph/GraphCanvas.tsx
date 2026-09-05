@@ -14,13 +14,12 @@ import {
   MiniMap
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Mail, User, Server, Smartphone } from 'lucide-react';
+import { Mail, User, Smartphone } from 'lucide-react';
 
 import { useGraphStore } from '../../stores/graphStore';
 import { useUIStore } from '../../stores/uiStore';
 import EmailNode from './nodes/EmailNode';
 import AccountNode from './nodes/AccountNode';
-import ServiceNode from './nodes/ServiceNode';
 import PhoneNode from './nodes/PhoneNode';
 import GlowEdge from './edges/GlowEdge';
 import GraphControls from './GraphControls';
@@ -33,7 +32,6 @@ import { updateNodePosition } from '../../api/nodes';
 const nodeTypes = {
   email: EmailNode,
   account: AccountNode,
-  service: ServiceNode,
   phone: PhoneNode,
 };
 
@@ -800,7 +798,6 @@ const GraphInner = () => {
           {[
             { type: 'email', icon: Mail, label: 'Email Node', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/50' },
             { type: 'account', icon: User, label: 'Account Node', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/50' },
-            { type: 'service', icon: Server, label: 'Service Node', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/50' },
             { type: 'phone', icon: Smartphone, label: 'Phone Node', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/50' },
           ].map(opt => (
             <button
