@@ -1,5 +1,26 @@
 import { NodeType, GraphData } from '../types/graph';
 
+export function formatErrorMessage(err: any): string {
+  if (!err) return 'Unknown error';
+  if (err.details !== undefined && err.details !== null) {
+    if (typeof err.details === 'string') {
+      return err.details;
+    }
+    if (typeof err.details === 'object') {
+      if (err.details.wait_remaining_ms !== undefined) {
+        return `Rate limited: please wait ${Math.ceil(err.details.wait_remaining_ms / 1000)}s before trying again`;
+      }
+      if (err.details.message) {
+        return String(err.details.message);
+      }
+      try {
+        return JSON.stringify(err.details);
+      } catch {}
+    }
+  }
+  return err.error || err.message || 'Save failed';
+}
+
 function normalizeError(err: any): any {
   if (err && typeof err === 'object') {
     if ('error' in err) return err;

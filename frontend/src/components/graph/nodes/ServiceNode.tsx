@@ -10,6 +10,7 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { ServiceNodeExport } from './ServiceNodeExport';
+import { formatErrorMessage } from '../../../api/nodes';
 
 export interface ServiceNodeProps {
   data: ServiceNodeType;
@@ -29,6 +30,7 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
     category: data.category || '',
     url: data.url || ''
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
@@ -77,6 +79,7 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setSaveError(null);
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
@@ -125,8 +128,10 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[ServiceNode] Raw error:', JSON.stringify(err));
+      console.error('[ServiceNode] handleSave error:', err);
+      setSaveError(formatErrorMessage(err));
     }
   };
 
@@ -137,6 +142,7 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
     } else {
       setIsEditing(false);
       setEditData({ name: data.name || '', category: data.category || '', url: data.url || '' });
+      setSaveError(null);
     }
   };
 
@@ -220,6 +226,9 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
               <input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} placeholder="Service Name" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
               <input value={editData.category} onChange={(e) => setEditData({ ...editData, category: e.target.value })} placeholder="Category" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
               <input value={editData.url} onChange={(e) => setEditData({ ...editData, url: e.target.value })} placeholder="URL" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100" />
+              {saveError && (
+                <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
+              )}
               <div className="flex gap-2 justify-end mt-2">
                 <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
                 <button onClick={handleSave} className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded font-medium transition-colors shadow-sm">Save</button>

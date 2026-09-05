@@ -95,15 +95,7 @@ pub fn configure_connection(conn: &rusqlite::Connection) -> rusqlite::Result<()>
 /// Initializes the complete schema on a newly opened or unlocked SQLite / SQLCipher connection.
 pub fn create_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     configure_connection(conn)?;
-    conn.execute_batch(INIT_SQL)?;
-    
-    // Insert dummy 'unlinked' service to satisfy foreign key constraints for Accounts
-    conn.execute(
-        "INSERT OR IGNORE INTO services (id, name, url, category, notes, tags) VALUES ('unlinked', 'Unlinked', NULL, NULL, NULL, '[]')",
-        [],
-    )?;
-    
-    Ok(())
+    conn.execute_batch(INIT_SQL)
 }
 
 #[cfg(test)]

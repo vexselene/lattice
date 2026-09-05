@@ -10,6 +10,7 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { PhoneNodeExport } from './PhoneNodeExport';
+import { formatErrorMessage } from '../../../api/nodes';
 
 export interface PhoneNodeProps {
   data: PhoneNodeType;
@@ -28,6 +29,7 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
     number: data.number || '',
     carrier: data.carrier || ''
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
@@ -76,6 +78,7 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setSaveError(null);
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
@@ -122,8 +125,10 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[PhoneNode] Raw error:', JSON.stringify(err));
+      console.error('[PhoneNode] handleSave error:', err);
+      setSaveError(formatErrorMessage(err));
     }
   };
 
@@ -134,6 +139,7 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
     } else {
       setIsEditing(false);
       setEditData({ number: data.number || '', carrier: data.carrier || '' });
+      setSaveError(null);
     }
   };
 
@@ -216,6 +222,9 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
               <input value={editData.number} onChange={(e) => setEditData({ ...editData, number: e.target.value })} placeholder="Phone Number" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100" />
               <input value={editData.carrier} onChange={(e) => setEditData({ ...editData, carrier: e.target.value })} placeholder="Carrier" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100" />
+              {saveError && (
+                <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
+              )}
               <div className="flex gap-2 justify-end mt-2">
                 <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
                 <button onClick={handleSave} className="px-3 py-1.5 bg-amber-600 text-white hover:bg-amber-700 rounded font-medium transition-colors shadow-sm">Save</button>

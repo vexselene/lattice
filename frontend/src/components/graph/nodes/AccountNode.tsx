@@ -12,6 +12,8 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { AccountNodeExport } from './AccountNodeExport';
 
+import { formatErrorMessage } from '../../../api/nodes';
+
 export interface AccountNodeProps {
   data: AccountNodeType;
   id: string;
@@ -23,17 +25,45 @@ export interface AccountNodeProps {
 export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   const { data, id: _id, exportMode } = props;
 
+  const { nodes: storeNodes, removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
+
+  const availableServices = React.useMemo(() => {
+    return storeNodes.filter((n) => n.type === 'service' && !(n.data as any).isEditing);
+  }, [storeNodes]);
+
+  const initialServiceId = React.useMemo(() => {
+    if (data.service_id) return data.service_id;
+    if ((data as any).pendingConnection) {
+      const pc = (data as any).pendingConnection;
+      if (pc.sourceType === 'service' && pc.sourceId) return pc.sourceId;
+      if (pc.targetType === 'service' && pc.targetId) return pc.targetId;
+    }
+    return '';
+  }, [data]);
+
   const [isExpanded, setIsExpanded] = useState((data as any).isExpanded || false);
   const [isEditing, setIsEditing] = useState((data as any).isEditing || false);
   const [editData, setEditData] = useState({
     username: data.username || '',
-    service_id: data.service_id || '',
+    service_id: initialServiceId,
     password: ''
   });
+  const [isCreatingService, setIsCreatingService] = useState(
+    availableServices.length === 0 && !initialServiceId
+  );
+  const [newServiceName, setNewServiceName] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
 
-
-  const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
+  useEffect(() => {
+    if ((data as any).isEditing) {
+      if (initialServiceId) {
+        setEditData((prev) => ({ ...prev, service_id: initialServiceId }));
+        setIsCreatingService(false);
+      } else if (availableServices.length === 0) {
+        setIsCreatingService(true);
+      }
+    }
+  }, [(data as any).isEditing, initialServiceId, availableServices.length]);
   const { isEditMode: globalEditMode } = useUIStore();
   const connectionInProgress = useStore((s) => s.connection.inProgress);
   const isConnecting = connectionInProgress;
@@ -80,14 +110,61 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setSaveError(null);
+
+    const trimmedUsername = editData.username.trim();
+    if (!trimmedUsername) {
+      setSaveError('Username is required');
+      return;
+    }
+
+    const isNewService = isCreatingService || availableServices.length === 0;
+    const trimmedNewServiceName = newServiceName.trim();
+
+    if (isNewService && !trimmedNewServiceName) {
+      setSaveError('Please enter a service name');
+      return;
+    }
+    if (!isNewService && !editData.service_id) {
+      setSaveError('Please select a valid service');
+      return;
+    }
+
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
 
+      let targetServiceId = editData.service_id;
+
+      // 1. If creating a new service inline, create it first
+      if (isNewService) {
+        const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
+        const currentPos = savedPositions[data.id] || { x: 100, y: 100 };
+        const serviceX = currentPos.x - 220;
+        const serviceY = currentPos.y;
+
+        const newService = await createNode('service', {
+          name: trimmedNewServiceName,
+          position_x: serviceX,
+          position_y: serviceY
+        });
+
+        if (!newService || !newService.id) {
+          throw new Error('Failed to create service: no ID returned');
+        }
+
+        targetServiceId = newService.id;
+
+        if (savedPositions[data.id]) {
+          savedPositions[newService.id] = { x: serviceX, y: serviceY };
+          localStorage.setItem('node_positions', JSON.stringify(savedPositions));
+        }
+      }
+
+      // 2. Create or update the account with targetServiceId
       if (isNew) {
         const res = await createNode('account', {
-          username: editData.username,
-          service_id: editData.service_id || 'unlinked',
+          username: trimmedUsername,
+          service_id: targetServiceId,
           password_raw: editData.password || undefined
         });
         const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
@@ -98,6 +175,7 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         }
         removeTempNode(data.id);
         
+        let serviceConnected = false;
         if ((data as any).pendingConnection) {
           const { createEdge } = await import('../../../api/edges');
           const pc = (data as any).pendingConnection;
@@ -110,6 +188,9 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
               target_id: res.id,
               relation: 'registered_with'
             });
+            if (pc.sourceType === 'service' && pc.sourceId === targetServiceId) {
+              serviceConnected = true;
+            }
           } else if (pc.targetId) {
             // Dragged from target handle: new account node → existing node
             await createEdge({
@@ -119,24 +200,43 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
               target_id: pc.targetId,
               relation: 'registered_with'
             });
+            if (pc.targetType === 'service' && pc.targetId === targetServiceId) {
+              serviceConnected = true;
+            }
+          }
+        }
+        // Auto-connect to selected/new service if not already connected
+        if (!serviceConnected && targetServiceId) {
+          try {
+            const { createEdge } = await import('../../../api/edges');
+            await createEdge({
+              source_type: 'service',
+              source_id: targetServiceId,
+              target_type: 'account',
+              target_id: res.id,
+              relation: 'registered_with'
+            });
+          } catch (edgeErr) {
+            console.error('[AccountNode] auto-connect service edge error:', edgeErr);
           }
         }
       } else {
         await updateNode('account', data.id, {
-          username: editData.username,
-          service_id: editData.service_id || 'unlinked',
+          username: trimmedUsername,
+          service_id: targetServiceId,
           password_raw: editData.password || undefined
         });
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
+      setIsCreatingService(false);
+      setNewServiceName('');
     } catch (err: any) {
-      const msg = err?.details?.message || err?.error || err?.message || 'Save failed';
-      setSaveError(String(msg));
+      console.error('[AccountNode] Raw error:', JSON.stringify(err));
       console.error('[AccountNode] handleSave error:', err);
+      setSaveError(formatErrorMessage(err));
     }
   };
-
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,6 +245,9 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
     } else {
       setIsEditing(false);
       setEditData({ username: data.username || '', service_id: data.service_id || '', password: '' });
+      setIsCreatingService(false);
+      setNewServiceName('');
+      setSaveError(null);
     }
   };
 
@@ -227,24 +330,92 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
 
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
-              <input value={editData.username} onChange={(e) => setEditData({ ...editData, username: e.target.value })} placeholder="Username" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
-              <input value={editData.service_id} onChange={(e) => setEditData({ ...editData, service_id: e.target.value })} placeholder="Service ID" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
-              <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} placeholder="Password (Optional)" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
+              <input
+                value={editData.username}
+                onChange={(e) => setEditData({ ...editData, username: e.target.value })}
+                placeholder="Username"
+                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100"
+              />
+              {availableServices.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <select
+                    value={isCreatingService ? '__new__' : editData.service_id}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') {
+                        setIsCreatingService(true);
+                      } else {
+                        setIsCreatingService(false);
+                        setEditData({ ...editData, service_id: e.target.value });
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100 text-xs"
+                  >
+                    <option value="">Select Service...</option>
+                    <option value="__new__">+ Create new service...</option>
+                    {availableServices.map((s: any) => (
+                      <option key={s.data.id} value={s.data.id}>
+                        {s.data.name || s.data.id}
+                      </option>
+                    ))}
+                  </select>
+                  {isCreatingService && (
+                    <input
+                      value={newServiceName}
+                      onChange={(e) => setNewServiceName(e.target.value)}
+                      placeholder="New Service Name"
+                      className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100 text-xs"
+                      autoFocus
+                    />
+                  )}
+                </div>
+              ) : (
+                <input
+                  value={newServiceName}
+                  onChange={(e) => setNewServiceName(e.target.value)}
+                  placeholder="Service Name (e.g. GitHub)"
+                  className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100 text-xs"
+                  autoFocus
+                />
+              )}
+              <input
+                type="password"
+                value={editData.password}
+                onChange={(e) => setEditData({ ...editData, password: e.target.value })}
+                placeholder="Password (Optional)"
+                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100"
+              />
               {saveError && (
                 <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
               )}
               <div className="flex gap-2 justify-end mt-2">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
-                <button onClick={handleSave} className="px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 rounded font-medium transition-colors shadow-sm">Save</button>
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={
+                    !editData.username.trim() ||
+                    (isCreatingService || availableServices.length === 0
+                      ? !newServiceName.trim()
+                      : !editData.service_id)
+                  }
+                  className="px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded font-medium transition-colors shadow-sm"
+                >
+                  Save
+                </button>
               </div>
             </div>
-
           ) : (
             <>
               <div className="flex flex-col gap-1 group">
-                <span className="text-[11px] font-medium leading-tight text-slate-500">Service ID</span>
+                <span className="text-[11px] font-medium leading-tight text-slate-500">Service</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.service_id || '—'}</span>
+                  <span className="text-slate-700 dark:text-slate-300 break-all">
+                    {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.name || data.service_id || '—'}
+                  </span>
                   {!!data.service_id && <CopyFieldButton value={data.service_id} />}
                 </div>
               </div>

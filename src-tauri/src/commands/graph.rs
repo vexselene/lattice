@@ -743,12 +743,20 @@ pub fn create_node_core(
             let username = data
                 .get("username")
                 .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
                 .ok_or_else(|| AuthError::Validation("username is required for Account".into()))?;
             let service_id = data
                 .get("service_id")
                 .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
                 .ok_or_else(|| AuthError::Validation("service_id is required for Account".into()))?;
-            let primary_email_id = data.get("primary_email_id").and_then(|v| v.as_str());
+            let primary_email_id = data
+                .get("primary_email_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty());
 
             conn.execute(
                 "INSERT INTO accounts (id, username, password_encrypted, service_id, primary_email_id, notes, tags, position_x, position_y, created_at, updated_at)
@@ -955,14 +963,23 @@ pub fn update_node_core(
             let username = data
                 .get("username")
                 .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
                 .unwrap_or(&existing_username);
             let service_id = data
                 .get("service_id")
                 .and_then(|v| v.as_str())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
                 .unwrap_or(&existing_service);
             let primary_email_id = data
                 .get("primary_email_id")
-                .map(|v| v.as_str().map(String::from))
+                .map(|v| {
+                    v.as_str()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                })
                 .unwrap_or(existing_email);
 
             let raw_pwd = data.get("password_raw").or_else(|| data.get("password"));

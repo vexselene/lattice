@@ -11,6 +11,7 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { EmailNodeExport } from './EmailNodeExport';
+import { formatErrorMessage } from '../../../api/nodes';
 
 export interface EmailNodeProps {
   data: EmailNodeType;
@@ -132,9 +133,9 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
     } catch (err: any) {
-      const msg = err?.details?.message || err?.error || err?.message || 'Save failed';
-      setSaveError(String(msg));
+      console.error('[EmailNode] Raw error:', JSON.stringify(err));
       console.error('[EmailNode] handleSave error:', err);
+      setSaveError(formatErrorMessage(err));
     }
   };
 
