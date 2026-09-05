@@ -53,6 +53,18 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   );
   const [newServiceName, setNewServiceName] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isPinned, setIsPinned] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDblClickTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if ((data as any).isEditing) {
@@ -93,9 +105,49 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
     setIsExpanded(true);
   };
 
-  const handleOpenSidebar = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenSidebar = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setSelectedNode({ type: 'account', data } as any);
+  };
+
+  const triggerDoubleClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastDblClickTimeRef.current < 350) {
+      return;
+    }
+    lastDblClickTimeRef.current = now;
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('cancel-node-click'));
+    handleOpenSidebar(e);
+  };
+
+  const handlePillClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.react-flow__handle') || (e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    e.stopPropagation();
+
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      triggerDoubleClick(e);
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        setIsPinned((prev) => !prev);
+      }, 250);
+    }
+  };
+
+  const handlePillDoubleClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.react-flow__handle') || (e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    triggerDoubleClick(e);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -257,6 +309,11 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
 
   if (!isVisible) return null;
 
+  const hasService = Boolean(data.service_name || (data as any).service_name);
+  const serviceName = data.service_name || (data as any).service_name || '';
+  const serviceColor = data.service_color || (data as any).service_color || '#3B82F6';
+  const isRightExpanded = hasService && (isPinned || isHovered);
+
   return (
     <div
       style={{
@@ -267,50 +324,86 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
         isDimmed && isModalOpen ? 'pointer-events-none' : 'cursor-pointer'
       )}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        window.dispatchEvent(new CustomEvent('cancel-node-click'));
-        if (!isEditing) {
-          const nextState = !isExpanded;
-          setIsExpanded(nextState);
-          if (nextState) {
-            setExpandedNodeId(data.id);
-          } else {
-            setExpandedNodeId(null);
-          }
-        }
-      }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
-      <div className={clsx("group relative rounded-full flex items-center cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
-        <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
-        <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
-
-        {/* Left segment - Account */}
-        <div className={clsx(
-          "py-1.5 pl-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 border border-purple-200 dark:border-purple-900/60",
-          (data as any).service_name ? "rounded-l-full pr-2.5 border-r-0" : "rounded-full pr-3"
-        )}>
-          <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
-            <User className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">
-            {isEditing ? (editData.username || 'New Account') : (data.username || 'New Account')}
-          </span>
-        </div>
-
-        {/* Right segment - Service */}
-        {Boolean((data as any).service_name) && (
-          <div
-            className="py-1.5 pl-2.5 pr-3.5 flex items-center gap-1.5 rounded-r-full text-xs font-semibold tracking-wide border border-purple-200 dark:border-purple-900/60 truncate max-w-[140px]"
-            style={{
-              backgroundColor: (data as any).service_color ? `${(data as any).service_color}20` : 'rgba(168, 85, 247, 0.15)',
-              color: (data as any).service_color || '#a855f7',
-            }}
-          >
-            <span className="truncate">{(data as any).service_name}</span>
-          </div>
+      <div
+        className={clsx(
+          "group relative flex items-center cursor-pointer transition-all duration-150 ease-out select-none",
+          ringClass
         )}
+        onClick={handlePillClick}
+        onDoubleClick={handlePillDoubleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="target-left"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={clsx(
+            "w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200 z-20",
+            isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="source-right"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={clsx(
+            "w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200 z-20",
+            isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
+        />
+
+        {/* Fused single pill container — no gap or border between the two color zones */}
+        <div
+          className={clsx(
+            "rounded-full flex items-stretch overflow-hidden border border-purple-200/80 dark:border-purple-800/60 drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-200",
+            isPinned && "ring-2 ring-purple-400/80 dark:ring-purple-500/80 ring-offset-1 dark:ring-offset-slate-900"
+          )}
+        >
+          {/* Left segment - Account */}
+          <div
+            className={clsx(
+              "py-1.5 pl-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 shrink-0",
+              hasService ? "pr-2" : "pr-3"
+            )}
+          >
+            <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
+              <User className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">
+              {isEditing ? (editData.username || 'New Account') : (data.username || 'New Account')}
+            </span>
+          </div>
+
+          {/* Right segment - Linked Service */}
+          {hasService && (
+            <div
+              className={clsx(
+                "flex items-center transition-all duration-300 ease-in-out overflow-hidden shrink-0",
+                isRightExpanded ? "max-w-[160px] px-2.5" : "max-w-[8px] px-0"
+              )}
+              style={{
+                backgroundColor: serviceColor,
+              }}
+              title={isPinned ? `Pinned: ${serviceName} (Click to collapse)` : `${serviceName} (Click to pin open)`}
+            >
+              <span
+                className={clsx(
+                  "text-xs font-semibold text-white tracking-wide truncate whitespace-nowrap transition-opacity duration-200",
+                  isRightExpanded ? "opacity-100 delay-100" : "opacity-0 pointer-events-none w-0 inline-block"
+                )}
+              >
+                {serviceName}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div
