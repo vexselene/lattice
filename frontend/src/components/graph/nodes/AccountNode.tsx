@@ -282,16 +282,35 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
       }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
+      <div className={clsx("group relative rounded-full flex items-center cursor-pointer drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
-        <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
-          <User className="w-3.5 h-3.5" />
+        {/* Left segment - Account */}
+        <div className={clsx(
+          "py-1.5 pl-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 border border-purple-200 dark:border-purple-900/60",
+          (data as any).service_name ? "rounded-l-full pr-2.5 border-r-0" : "rounded-full pr-3"
+        )}>
+          <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
+            <User className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">
+            {isEditing ? (editData.username || 'New Account') : (data.username || 'New Account')}
+          </span>
         </div>
-        <span className="text-sm font-medium tracking-tight truncate max-w-[150px]">
-          {isEditing ? (editData.username || 'New Account') : (data.username || 'New Account')}
-        </span>
+
+        {/* Right segment - Service */}
+        {Boolean((data as any).service_name) && (
+          <div
+            className="py-1.5 pl-2.5 pr-3.5 flex items-center gap-1.5 rounded-r-full text-xs font-semibold tracking-wide border border-purple-200 dark:border-purple-900/60 truncate max-w-[140px]"
+            style={{
+              backgroundColor: (data as any).service_color ? `${(data as any).service_color}20` : 'rgba(168, 85, 247, 0.15)',
+              color: (data as any).service_color || '#a855f7',
+            }}
+          >
+            <span className="truncate">{(data as any).service_name}</span>
+          </div>
+        )}
       </div>
 
       <div

@@ -31,6 +31,8 @@ export interface AccountNode extends BaseNode {
   username: string;
   password_encrypted?: string | null;
   service_id: string;
+  service_name?: string | null;
+  service_color?: string | null;
   primary_email_id?: string | null;
 }
 

@@ -6,12 +6,15 @@ interface UIState {
   searchQuery: string;
   typeFilters: NodeType[];
   tagFilters: string[];
+  serviceFilters: string[];
   theme: 'dark' | 'light';
   isEditMode: boolean;
   setSearchQuery: (query: string) => void;
   setTypeFilters: (filters: NodeType[]) => void;
   toggleTagFilter: (tag: string) => void;
   clearTagFilters: () => void;
+  toggleServiceFilter: (service: string) => void;
+  clearServiceFilters: () => void;
   toggleTypeFilter: (filter: NodeType) => void;
   toggleTheme: () => void;
   toggleEditMode: () => void;
@@ -30,6 +33,7 @@ export const useUIStore = create<UIState>()(
       searchQuery: '',
       typeFilters: [],
       tagFilters: [],
+      serviceFilters: [],
       theme: getSystemTheme(),
       isEditMode: false,
       setSearchQuery: (query) => set({ searchQuery: query }),
@@ -40,6 +44,12 @@ export const useUIStore = create<UIState>()(
           : [...state.tagFilters, tag]
       })),
       clearTagFilters: () => set({ tagFilters: [] }),
+      toggleServiceFilter: (service) => set((state) => ({
+        serviceFilters: state.serviceFilters.includes(service)
+          ? state.serviceFilters.filter((s) => s !== service)
+          : [...state.serviceFilters, service]
+      })),
+      clearServiceFilters: () => set({ serviceFilters: [] }),
       toggleTypeFilter: (filter) => set((state) => ({
         typeFilters: state.typeFilters.includes(filter)
           ? state.typeFilters.filter((f) => f !== filter)

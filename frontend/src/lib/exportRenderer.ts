@@ -148,6 +148,80 @@ function renderNodeAsSvg(
 
   const parts: string[] = [];
 
+  // Check if dual-pill account
+  const isDualPill = type === 'account' && Boolean(data.service_name || data.service_id);
+  if (isDualPill) {
+    const serviceName = data.service_name || data.service_id;
+    const serviceColor = data.service_color || '#3B82F6';
+    const sFontSize = 12;
+    const sMaxChars = Math.floor(maxTextPx / (sFontSize * 0.6));
+    const sDisplayLabel = serviceName.length > sMaxChars ? serviceName.slice(0, sMaxChars - 1) + '\u2026' : serviceName;
+    const sTextW = Math.min(measureTextWidth(sDisplayLabel, sFontSize), maxTextPx);
+
+    const padR1 = 8;
+    const W1 = paddingL + iconCircleDiam + gapIconText + textW + padR1;
+    const padL2 = 8;
+    const padR2 = 12;
+    const W2 = padL2 + sTextW + padR2;
+    const totalW = W1 + W2;
+
+    // 1. Left segment (Account)
+    parts.push(
+      `<path d="M 16 0 L ${W1} 0 L ${W1} ${H} L 16 ${H} A 16 16 0 0 1 0 16 A 16 16 0 0 1 16 0 Z" fill="${colors.bg}"/>`
+    );
+
+    // 2. Right segment (Service)
+    parts.push(
+      `<path d="M ${W1} 0 L ${totalW - 16} 0 A 16 16 0 0 1 ${totalW} 16 A 16 16 0 0 1 ${totalW - 16} ${H} L ${W1} ${H} Z" fill="${serviceColor}" fill-opacity="${isDark ? '0.2' : '0.12'}"/>`
+    );
+
+    // 3. Divider line
+    parts.push(
+      `<line x1="${W1}" y1="0" x2="${W1}" y2="${H}" stroke="${colors.border}" stroke-width="1"/>`
+    );
+
+    // 4. Outer border
+    parts.push(
+      `<rect x="0" y="0" width="${totalW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="none" stroke="${colors.border}" stroke-width="1"/>`
+    );
+
+    // Selection ring
+    if (hasRing) {
+      parts.push(
+        `<rect x="-2" y="-2" width="${totalW + 4}" height="${H + 4}" rx="${H / 2 + 2}" ry="${H / 2 + 2}" fill="none" stroke="${ringColor}" stroke-width="2" opacity="0.8"/>`
+      );
+    }
+
+    // Icon background circle
+    parts.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconCircleR}" fill="${colors.iconBg}"/>`);
+
+    // Icon paths
+    parts.push(renderIcon(type, iconCx, iconCy, colors.iconText));
+
+    // Left text (username)
+    const textX = paddingL + iconCircleDiam + gapIconText;
+    const textY = H / 2;
+    parts.push(
+      `<defs><clipPath id="${clipId}"><rect x="${textX}" y="${paddingY}" width="${maxTextPx}" height="${H - paddingY * 2}"/></clipPath></defs>`
+    );
+    parts.push(
+      `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="500" fill="${colors.text}" dominant-baseline="central" clip-path="url(#${clipId})">${escapeXml(displayLabel)}</text>`
+    );
+
+    // Right text (service)
+    const sClipId = `${clipId}-service`;
+    const sTextX = W1 + padL2;
+    const sTextY = H / 2;
+    parts.push(
+      `<defs><clipPath id="${sClipId}"><rect x="${sTextX}" y="${paddingY}" width="${maxTextPx}" height="${H - paddingY * 2}"/></clipPath></defs>`
+    );
+    parts.push(
+      `<text x="${sTextX}" y="${sTextY}" font-family="${fontFamily}" font-size="${sFontSize}" font-weight="600" fill="${serviceColor}" dominant-baseline="central" clip-path="url(#${sClipId})">${escapeXml(sDisplayLabel)}</text>`
+    );
+
+    return `<g transform="translate(${nodeX},${nodeY})" opacity="${opacity}"${filterStr}>\n  ${parts.join('\n  ')}\n</g>`;
+  }
+
   // Pill fill + border
   parts.push(
     `<rect x="0" y="0" width="${pillW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="${colors.bg}" stroke="${colors.border}" stroke-width="1"/>`

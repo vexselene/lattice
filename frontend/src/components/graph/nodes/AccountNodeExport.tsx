@@ -19,17 +19,14 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
     ? `0 0 0 2px ${nodeTheme.ring}, 0 0 0 3px ${themeMode === 'dark' ? '#0f172a' : '#ffffff'}`
     : undefined;
 
+  const serviceName = (data as any).service_name;
+  const serviceColor = (data as any).service_color || '#a855f7';
+
   return (
     <div
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '6px 12px',
-        borderRadius: '9999px',
-        backgroundColor: nodeTheme.bg,
-        color: nodeTheme.text,
-        border: `1px solid ${nodeTheme.border}`,
         boxShadow: ringStyle,
         opacity: visualState?.opacity ?? 1,
         filter: visualState?.filter ?? 'none',
@@ -43,29 +40,65 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
     >
       <div
         style={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          padding: '4px',
-          borderRadius: '9999px',
-          backgroundColor: nodeTheme.iconBg,
-          color: nodeTheme.iconText,
-          flexShrink: 0,
+          gap: '8px',
+          padding: serviceName ? '6px 10px 6px 12px' : '6px 12px',
+          borderRadius: serviceName ? '9999px 0 0 9999px' : '9999px',
+          backgroundColor: nodeTheme.bg,
+          color: nodeTheme.text,
+          border: `1px solid ${nodeTheme.border}`,
+          borderRight: serviceName ? 'none' : `1px solid ${nodeTheme.border}`,
         }}
       >
-        <User style={{ width: '14px', height: '14px' }} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '4px',
+            borderRadius: '9999px',
+            backgroundColor: nodeTheme.iconBg,
+            color: nodeTheme.iconText,
+            flexShrink: 0,
+          }}
+        >
+          <User style={{ width: '14px', height: '14px' }} />
+        </div>
+        <span
+          style={{
+            maxWidth: '150px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {data.username || 'New Account'}
+        </span>
       </div>
-      <span
-        style={{
-          maxWidth: '150px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          letterSpacing: '-0.01em',
-        }}
-      >
-        {data.username || 'New Account'}
-      </span>
+
+      {serviceName && (
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '6px 14px 6px 10px',
+            borderRadius: '0 9999px 9999px 0',
+            backgroundColor: `${serviceColor}20`,
+            color: serviceColor,
+            border: `1px solid ${nodeTheme.border}`,
+            fontSize: '12px',
+            fontWeight: 600,
+            maxWidth: '140px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {serviceName}
+        </div>
+      )}
     </div>
   );
 };

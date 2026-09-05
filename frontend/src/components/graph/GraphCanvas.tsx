@@ -79,7 +79,7 @@ const GraphInner = () => {
     setActiveMultiMode
   } = useGraphStore();
   
-  const { theme, searchQuery, typeFilters, tagFilters, isEditMode } = useUIStore();
+  const { theme, searchQuery, typeFilters, tagFilters, serviceFilters, isEditMode } = useUIStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -223,6 +223,18 @@ const GraphInner = () => {
         }
       }
 
+      if (!isHidden && serviceFilters && serviceFilters.length > 0) {
+        if (n.type !== 'account') {
+          isHidden = true;
+        } else {
+          const sName = (n.data as any)?.service_name;
+          const sId = (n.data as any)?.service_id;
+          if (!serviceFilters.includes(sName) && !serviceFilters.includes(sId)) {
+            isHidden = true;
+          }
+        }
+      }
+
       if (!isHidden && searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
         
@@ -336,7 +348,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, tagFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, tagFilters, serviceFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
