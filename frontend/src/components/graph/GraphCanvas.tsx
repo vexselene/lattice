@@ -28,6 +28,7 @@ import SelectionActionDock from './SelectionActionDock';
 import { ExportModal } from './ExportModal';
 import useGraphLayout from '../../hooks/useGraphLayout';
 import { GRAPH_STYLE } from '../../config/graphStyleConfig';
+import { updateNodePosition } from '../../api/nodes';
 
 const nodeTypes = {
   email: EmailNode,
@@ -426,6 +427,10 @@ const GraphInner = () => {
           relation: 'registered_with'
         });
       }
+    } else {
+      // Normal node drag (no proximity connection) - save position to database
+      updateNodePosition(node.type || 'email', node.id, node.position.x, node.position.y)
+        .catch(err => console.error('[GraphCanvas] Failed to update node position:', err));
     }
     setProximityTarget(null);
     setDraggingNode(null);
