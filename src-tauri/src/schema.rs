@@ -33,6 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_phones_number ON phones(number);
 CREATE TABLE IF NOT EXISTS services (
     id                 TEXT PRIMARY KEY,
     name               TEXT NOT NULL,
+    color              TEXT NOT NULL DEFAULT '',
     url                TEXT,
     category           TEXT,
     icon_url           TEXT,

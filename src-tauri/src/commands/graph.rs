@@ -35,6 +35,12 @@ fn encrypt_password(key: &[u8; 32], password: Option<&str>) -> Result<Option<Str
     }
 }
 
+pub const SERVICE_PALETTE: &[&str] = &[
+    "#EF4444", "#F97316", "#F59E0B", "#10B981",
+    "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6",
+    "#D946EF", "#F43F5E", "#84CC16", "#0EA5E9",
+];
+
 // =========================================================================
 // Core Business Logic
 // =========================================================================
@@ -140,7 +146,7 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
     {
         let mut stmt = conn
             .prepare(
-                "SELECT id, name, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at FROM services",
+                "SELECT id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at FROM services",
             )
             .map_err(|e| AuthError::Database(e.to_string()))?;
         let rows = stmt
@@ -148,21 +154,22 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(2)?,
                     row.get::<_, Option<String>>(3)?,
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, Option<String>>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, f64>(7)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, String>(7)?,
                     row.get::<_, f64>(8)?,
-                    row.get::<_, String>(9)?,
+                    row.get::<_, f64>(9)?,
                     row.get::<_, String>(10)?,
+                    row.get::<_, String>(11)?,
                 ))
             })
             .map_err(|e| AuthError::Database(e.to_string()))?;
 
         for r in rows {
-            let (id, name, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
+            let (id, name, color, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
                 r.map_err(|e| AuthError::Database(e.to_string()))?;
             let notes_plain = decrypt_notes(key, notes_cipher);
             let tags = parse_tags(&tags_str);
@@ -171,6 +178,7 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                 data: serde_json::json!({
                     "id": id,
                     "name": name,
+                    "color": color,
                     "url": url,
                     "category": category,
                     "icon_url": icon_url,
@@ -366,7 +374,7 @@ pub fn get_nodes_core(
         NodeType::Service => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, name, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at
+                    "SELECT id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at
                      FROM services LIMIT ?1 OFFSET ?2",
                 )
                 .map_err(|e| AuthError::Database(e.to_string()))?;
@@ -375,20 +383,21 @@ pub fn get_nodes_core(
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
-                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, Option<String>>(4)?,
                         row.get::<_, Option<String>>(5)?,
-                        row.get::<_, String>(6)?,
-                        row.get::<_, f64>(7)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, String>(7)?,
                         row.get::<_, f64>(8)?,
-                        row.get::<_, String>(9)?,
+                        row.get::<_, f64>(9)?,
                         row.get::<_, String>(10)?,
+                        row.get::<_, String>(11)?,
                     ))
                 })
                 .map_err(|e| AuthError::Database(e.to_string()))?;
             for r in rows {
-                let (id, name, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
+                let (id, name, color, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
                     r.map_err(|e| AuthError::Database(e.to_string()))?;
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 nodes.push(GraphNode {
@@ -396,6 +405,7 @@ pub fn get_nodes_core(
                     data: serde_json::json!({
                         "id": id,
                         "name": name,
+                        "color": color,
                         "url": url,
                         "category": category,
                         "icon_url": icon_url,
@@ -556,7 +566,7 @@ fn query_node_by_id(
         NodeType::Service => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, name, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at
+                    "SELECT id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at
                      FROM services WHERE id = ?1",
                 )
                 .map_err(|e| AuthError::Database(e.to_string()))?;
@@ -566,21 +576,22 @@ fn query_node_by_id(
             if let Some(row) = rows.next().map_err(|e| AuthError::Database(e.to_string()))? {
                 let id: String = row.get(0).map_err(|e| AuthError::Database(e.to_string()))?;
                 let name: String = row.get(1).map_err(|e| AuthError::Database(e.to_string()))?;
+                let color: String = row.get(2).map_err(|e| AuthError::Database(e.to_string()))?;
                 let url: Option<String> =
-                    row.get(2).map_err(|e| AuthError::Database(e.to_string()))?;
-                let category: Option<String> =
                     row.get(3).map_err(|e| AuthError::Database(e.to_string()))?;
-                let icon_url: Option<String> =
+                let category: Option<String> =
                     row.get(4).map_err(|e| AuthError::Database(e.to_string()))?;
-                let notes_cipher: Option<String> =
+                let icon_url: Option<String> =
                     row.get(5).map_err(|e| AuthError::Database(e.to_string()))?;
-                let tags_str: String = row.get(6).map_err(|e| AuthError::Database(e.to_string()))?;
-                let px: f64 = row.get(7).map_err(|e| AuthError::Database(e.to_string()))?;
-                let py: f64 = row.get(8).map_err(|e| AuthError::Database(e.to_string()))?;
+                let notes_cipher: Option<String> =
+                    row.get(6).map_err(|e| AuthError::Database(e.to_string()))?;
+                let tags_str: String = row.get(7).map_err(|e| AuthError::Database(e.to_string()))?;
+                let px: f64 = row.get(8).map_err(|e| AuthError::Database(e.to_string()))?;
+                let py: f64 = row.get(9).map_err(|e| AuthError::Database(e.to_string()))?;
                 let created_at: String =
-                    row.get(9).map_err(|e| AuthError::Database(e.to_string()))?;
-                let updated_at: String =
                     row.get(10).map_err(|e| AuthError::Database(e.to_string()))?;
+                let updated_at: String =
+                    row.get(11).map_err(|e| AuthError::Database(e.to_string()))?;
 
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 Ok(GraphNode {
@@ -588,6 +599,7 @@ fn query_node_by_id(
                     data: serde_json::json!({
                         "id": id,
                         "name": name,
+                        "color": color,
                         "url": url,
                         "category": category,
                         "icon_url": icon_url,
@@ -733,10 +745,16 @@ pub fn create_node_core(
             let category = data.get("category").and_then(|v| v.as_str());
             let icon_url = data.get("icon_url").and_then(|v| v.as_str());
 
+            let count: usize = conn
+                .query_row("SELECT COUNT(*) FROM services", [], |r| r.get(0))
+                .map_err(|e| AuthError::Database(e.to_string()))?;
+            let default_color = SERVICE_PALETTE[count % SERVICE_PALETTE.len()];
+            let color = data.get("color").and_then(|v| v.as_str()).unwrap_or(default_color);
+
             conn.execute(
-                "INSERT INTO services (id, name, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                rusqlite::params![id, name, url, category, icon_url, encrypted_notes, tags_json, px, py, now, now],
+                "INSERT INTO services (id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id, name, color, url, category, icon_url, encrypted_notes, tags_json, px, py, now, now],
             ).map_err(|e| AuthError::Database(e.to_string()))?;
         }
         NodeType::Account => {
@@ -886,7 +904,8 @@ pub fn update_node_core(
             ).map_err(|e| AuthError::Database(e.to_string()))?;
         }
         NodeType::Service => {
-            let (existing_name, existing_url, existing_category, existing_icon, existing_notes, existing_tags, existing_px, existing_py): (
+            let (existing_name, existing_color, existing_url, existing_category, existing_icon, existing_notes, existing_tags, existing_px, existing_py): (
+                String,
                 String,
                 Option<String>,
                 Option<String>,
@@ -897,9 +916,9 @@ pub fn update_node_core(
                 f64,
             ) = conn
                 .query_row(
-                    "SELECT name, url, category, icon_url, notes, tags, position_x, position_y FROM services WHERE id = ?1",
+                    "SELECT name, color, url, category, icon_url, notes, tags, position_x, position_y FROM services WHERE id = ?1",
                     rusqlite::params![node_id],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?)),
                 )
                 .map_err(|e| match e {
                     rusqlite::Error::QueryReturnedNoRows => AuthError::NotFound(format!("Service {} not found", node_id)),
@@ -907,6 +926,7 @@ pub fn update_node_core(
                 })?;
 
             let name = data.get("name").and_then(|v| v.as_str()).unwrap_or(&existing_name);
+            let color = data.get("color").and_then(|v| v.as_str()).unwrap_or(&existing_color);
             let url = data.get("url").map(|v| v.as_str().map(String::from)).unwrap_or(existing_url);
             let category = data
                 .get("category")
@@ -934,9 +954,9 @@ pub fn update_node_core(
             let py = data.get("position_y").and_then(|v| v.as_f64()).unwrap_or(existing_py);
 
             conn.execute(
-                "UPDATE services SET name = ?1, url = ?2, category = ?3, icon_url = ?4, notes = ?5, tags = ?6, position_x = ?7, position_y = ?8, updated_at = ?9
-                 WHERE id = ?10",
-                rusqlite::params![name, url, category, icon_url, notes_encrypted, tags_json, px, py, now, node_id],
+                "UPDATE services SET name = ?1, color = ?2, url = ?3, category = ?4, icon_url = ?5, notes = ?6, tags = ?7, position_x = ?8, position_y = ?9, updated_at = ?10
+                 WHERE id = ?11",
+                rusqlite::params![name, color, url, category, icon_url, notes_encrypted, tags_json, px, py, now, node_id],
             ).map_err(|e| AuthError::Database(e.to_string()))?;
         }
         NodeType::Account => {
@@ -1496,7 +1516,7 @@ pub fn search_core(
             NodeType::Service => {
                 let mut stmt = conn
                     .prepare(
-                        "SELECT id, name, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at FROM services",
+                        "SELECT id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at FROM services",
                     )
                     .map_err(|e| AuthError::Database(e.to_string()))?;
                 let rows = stmt
@@ -1504,21 +1524,22 @@ pub fn search_core(
                         Ok((
                             row.get::<_, String>(0)?,
                             row.get::<_, String>(1)?,
-                            row.get::<_, Option<String>>(2)?,
+                            row.get::<_, String>(2)?,
                             row.get::<_, Option<String>>(3)?,
                             row.get::<_, Option<String>>(4)?,
                             row.get::<_, Option<String>>(5)?,
-                            row.get::<_, String>(6)?,
-                            row.get::<_, f64>(7)?,
+                            row.get::<_, Option<String>>(6)?,
+                            row.get::<_, String>(7)?,
                             row.get::<_, f64>(8)?,
-                            row.get::<_, String>(9)?,
+                            row.get::<_, f64>(9)?,
                             row.get::<_, String>(10)?,
+                            row.get::<_, String>(11)?,
                         ))
                     })
                     .map_err(|e| AuthError::Database(e.to_string()))?;
 
                 for r in rows {
-                    let (id, name, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
+                    let (id, name, color, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
                         r.map_err(|e| AuthError::Database(e.to_string()))?;
                     let notes_plain = decrypt_notes(key, notes_cipher);
                     let tags = parse_tags(&tags_str);
@@ -1544,6 +1565,7 @@ pub fn search_core(
                             data: serde_json::json!({
                                 "id": id,
                                 "name": name,
+                                "color": color,
                                 "url": url,
                                 "category": category,
                                 "icon_url": icon_url,
@@ -1907,5 +1929,65 @@ mod tests {
 
         let res = delete_node_core(&state, "email", "some-id");
         assert_eq!(res, Err(AuthError::NotUnlocked));
+    }
+
+    #[tokio::test]
+    async fn test_service_color_palette_sequence() {
+        let (state, _) = setup_test_state();
+
+        let srv1 = create_node_core(
+            &state,
+            "service",
+            serde_json::json!({
+                "name": "Service 1",
+            }),
+        )
+        .unwrap();
+        assert_eq!(srv1.data["color"], SERVICE_PALETTE[0]);
+
+        let srv2 = create_node_core(
+            &state,
+            "service",
+            serde_json::json!({
+                "name": "Service 2",
+            }),
+        )
+        .unwrap();
+        assert_eq!(srv2.data["color"], SERVICE_PALETTE[1]);
+
+        let srv3 = create_node_core(
+            &state,
+            "service",
+            serde_json::json!({
+                "name": "Service 3",
+            }),
+        )
+        .unwrap();
+        assert_eq!(srv3.data["color"], SERVICE_PALETTE[2]);
+
+        // Also verify get_graph_core returns the colors
+        let graph = get_graph_core(&state).unwrap();
+        let service_nodes: Vec<_> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.node_type == "service")
+            .collect();
+        assert_eq!(service_nodes.len(), 3);
+        assert_eq!(service_nodes[0].data["color"], SERVICE_PALETTE[0]);
+        assert_eq!(service_nodes[1].data["color"], SERVICE_PALETTE[1]);
+        assert_eq!(service_nodes[2].data["color"], SERVICE_PALETTE[2]);
+
+        // Also verify update_node_core allows color override
+        let srv1_id = srv1.data["id"].as_str().unwrap();
+        let updated = update_node_core(
+            &state,
+            "service",
+            srv1_id,
+            serde_json::json!({
+                "color": "#123456",
+            }),
+        )
+        .unwrap();
+        assert_eq!(updated.data["color"], "#123456");
     }
 }

@@ -43,6 +43,7 @@ pub struct PhoneNode {
 pub struct ServiceNode {
     pub id: String,
     pub name: String,
+    pub color: String,
     pub url: Option<String>,
     pub category: Option<String>,
     pub icon_url: Option<String>,
