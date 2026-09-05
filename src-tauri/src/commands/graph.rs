@@ -142,62 +142,13 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
         }
     }
 
-    // 3. Services
+    // 3. Accounts
     {
         let mut stmt = conn
             .prepare(
-                "SELECT id, name, color, url, category, icon_url, notes, tags, position_x, position_y, created_at, updated_at FROM services",
-            )
-            .map_err(|e| AuthError::Database(e.to_string()))?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, Option<String>>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, String>(7)?,
-                    row.get::<_, f64>(8)?,
-                    row.get::<_, f64>(9)?,
-                    row.get::<_, String>(10)?,
-                    row.get::<_, String>(11)?,
-                ))
-            })
-            .map_err(|e| AuthError::Database(e.to_string()))?;
-
-        for r in rows {
-            let (id, name, color, url, category, icon_url, notes_cipher, tags_str, px, py, created_at, updated_at) =
-                r.map_err(|e| AuthError::Database(e.to_string()))?;
-            let notes_plain = decrypt_notes(key, notes_cipher);
-            let tags = parse_tags(&tags_str);
-            nodes.push(GraphNode {
-                node_type: "service".to_string(),
-                data: serde_json::json!({
-                    "id": id,
-                    "name": name,
-                    "color": color,
-                    "url": url,
-                    "category": category,
-                    "icon_url": icon_url,
-                    "notes": notes_plain,
-                    "tags": tags,
-                    "position_x": px,
-                    "position_y": py,
-                    "created_at": created_at,
-                    "updated_at": updated_at,
-                }),
-            });
-        }
-    }
-
-    // 4. Accounts
-    {
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, username, service_id, primary_email_id, notes, tags, position_x, position_y, created_at, updated_at FROM accounts",
+                "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                 FROM accounts a
+                 LEFT JOIN services s ON a.service_id = s.id",
             )
             .map_err(|e| AuthError::Database(e.to_string()))?;
         let rows = stmt
@@ -213,12 +164,14 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                     row.get::<_, f64>(7)?,
                     row.get::<_, String>(8)?,
                     row.get::<_, String>(9)?,
+                    row.get::<_, Option<String>>(10)?,
+                    row.get::<_, Option<String>>(11)?,
                 ))
             })
             .map_err(|e| AuthError::Database(e.to_string()))?;
 
         for r in rows {
-            let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at) =
+            let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color) =
                 r.map_err(|e| AuthError::Database(e.to_string()))?;
             let notes_plain = decrypt_notes(key, notes_cipher);
             let tags = parse_tags(&tags_str);
@@ -228,6 +181,8 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                     "id": id,
                     "username": username,
                     "service_id": service_id,
+                    "service_name": service_name,
+                    "service_color": service_color,
                     "primary_email_id": primary_email_id,
                     "notes": notes_plain,
                     "tags": tags,
@@ -422,8 +377,10 @@ pub fn get_nodes_core(
         NodeType::Account => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, username, service_id, primary_email_id, notes, tags, position_x, position_y, created_at, updated_at
-                     FROM accounts LIMIT ?1 OFFSET ?2",
+                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                     FROM accounts a
+                     LEFT JOIN services s ON a.service_id = s.id
+                     LIMIT ?1 OFFSET ?2",
                 )
                 .map_err(|e| AuthError::Database(e.to_string()))?;
             let rows = stmt
@@ -439,11 +396,13 @@ pub fn get_nodes_core(
                         row.get::<_, f64>(7)?,
                         row.get::<_, String>(8)?,
                         row.get::<_, String>(9)?,
+                        row.get::<_, Option<String>>(10)?,
+                        row.get::<_, Option<String>>(11)?,
                     ))
                 })
                 .map_err(|e| AuthError::Database(e.to_string()))?;
             for r in rows {
-                let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at) =
+                let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color) =
                     r.map_err(|e| AuthError::Database(e.to_string()))?;
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 nodes.push(GraphNode {
@@ -452,6 +411,8 @@ pub fn get_nodes_core(
                         "id": id,
                         "username": username,
                         "service_id": service_id,
+                        "service_name": service_name,
+                        "service_color": service_color,
                         "primary_email_id": primary_email_id,
                         "notes": notes_plain,
                         "tags": parse_tags(&tags_str),
@@ -618,8 +579,10 @@ fn query_node_by_id(
         NodeType::Account => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, username, service_id, primary_email_id, notes, tags, position_x, position_y, created_at, updated_at
-                     FROM accounts WHERE id = ?1",
+                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                     FROM accounts a
+                     LEFT JOIN services s ON a.service_id = s.id
+                     WHERE a.id = ?1",
                 )
                 .map_err(|e| AuthError::Database(e.to_string()))?;
             let mut rows = stmt
@@ -641,6 +604,10 @@ fn query_node_by_id(
                     row.get(8).map_err(|e| AuthError::Database(e.to_string()))?;
                 let updated_at: String =
                     row.get(9).map_err(|e| AuthError::Database(e.to_string()))?;
+                let service_name: Option<String> =
+                    row.get(10).map_err(|e| AuthError::Database(e.to_string()))?;
+                let service_color: Option<String> =
+                    row.get(11).map_err(|e| AuthError::Database(e.to_string()))?;
 
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 Ok(GraphNode {
@@ -649,6 +616,8 @@ fn query_node_by_id(
                         "id": id,
                         "username": username,
                         "service_id": service_id,
+                        "service_name": service_name,
+                        "service_color": service_color,
                         "primary_email_id": primary_email_id,
                         "notes": notes_plain,
                         "tags": parse_tags(&tags_str),
@@ -1237,6 +1206,10 @@ pub fn create_edge_core(
     state: &Mutex<AppState>,
     edge: EdgeCreatePayload,
 ) -> Result<Edge, AuthError> {
+    if edge.source_type == "service" || edge.target_type == "service" {
+        return Err(AuthError::Validation("Services cannot have edges".into()));
+    }
+
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
     let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
 
@@ -1390,7 +1363,6 @@ pub fn search_core(
         vec![
             NodeType::Email,
             NodeType::Phone,
-            NodeType::Service,
             NodeType::Account,
         ]
     };
@@ -1865,17 +1837,16 @@ mod tests {
     async fn test_delete_node_transaction_cascades_polymorphic_edges() {
         let (state, _) = setup_test_state();
 
-        // Create service node
-        let srv = create_node_core(
+        // Create phone node
+        let ph = create_node_core(
             &state,
-            "service",
+            "phone",
             serde_json::json!({
-                "name": "GitHub",
-                "url": "https://github.com",
+                "number": "+1234567890",
             }),
         )
         .unwrap();
-        let srv_id = srv.data["id"].as_str().unwrap().to_string();
+        let ph_id = ph.data["id"].as_str().unwrap().to_string();
 
         // Create email node
         let eml = create_node_core(
@@ -1888,21 +1859,21 @@ mod tests {
         .unwrap();
         let eml_id = eml.data["id"].as_str().unwrap().to_string();
 
-        // Create polymorphic edge between email and service
+        // Create polymorphic edge between email and phone
         let edge = create_edge_core(
             &state,
             EdgeCreatePayload {
                 source_type: "email".into(),
                 source_id: eml_id.clone(),
-                target_type: "service".into(),
-                target_id: srv_id.clone(),
-                relation: "registered_with".into(),
-                notes: Some("primary account".into()),
+                target_type: "phone".into(),
+                target_id: ph_id.clone(),
+                relation: "recovery_for".into(),
+                notes: Some("primary recovery".into()),
             },
         )
         .unwrap();
 
-        assert_eq!(edge.relation, "registered_with");
+        assert_eq!(edge.relation, "recovery_for");
 
         // Verify edge exists
         let edges = get_edges_core(&state, None, None).unwrap();
@@ -1965,20 +1936,43 @@ mod tests {
         .unwrap();
         assert_eq!(srv3.data["color"], SERVICE_PALETTE[2]);
 
-        // Also verify get_graph_core returns the colors
+        // Verify get_graph_core contains ZERO service nodes
         let graph = get_graph_core(&state).unwrap();
         let service_nodes: Vec<_> = graph
             .nodes
             .iter()
             .filter(|n| n.node_type == "service")
             .collect();
-        assert_eq!(service_nodes.len(), 3);
-        assert_eq!(service_nodes[0].data["color"], SERVICE_PALETTE[0]);
-        assert_eq!(service_nodes[1].data["color"], SERVICE_PALETTE[1]);
-        assert_eq!(service_nodes[2].data["color"], SERVICE_PALETTE[2]);
+        assert_eq!(service_nodes.len(), 0);
 
-        // Also verify update_node_core allows color override
+        // Verify get_nodes_core returns the service lookup nodes with their colors
+        let lookup_nodes = get_nodes_core(&state, "service", None, None).unwrap();
+        assert_eq!(lookup_nodes.len(), 3);
+        assert_eq!(lookup_nodes[0].data["color"], SERVICE_PALETTE[0]);
+        assert_eq!(lookup_nodes[1].data["color"], SERVICE_PALETTE[1]);
+        assert_eq!(lookup_nodes[2].data["color"], SERVICE_PALETTE[2]);
+
+        // Also verify creating an account with a service populates service_name and service_color
         let srv1_id = srv1.data["id"].as_str().unwrap();
+        let acc = create_node_core(
+            &state,
+            "account",
+            serde_json::json!({
+                "username": "octocat",
+                "service_id": srv1_id,
+            }),
+        )
+        .unwrap();
+        assert_eq!(acc.data["service_name"], "Service 1");
+        assert_eq!(acc.data["service_color"], SERVICE_PALETTE[0]);
+
+        // Verify account node in get_graph_core has joined service_name and service_color
+        let graph_after_acc = get_graph_core(&state).unwrap();
+        let acc_node = graph_after_acc.nodes.iter().find(|n| n.node_type == "account").unwrap();
+        assert_eq!(acc_node.data["service_name"], "Service 1");
+        assert_eq!(acc_node.data["service_color"], SERVICE_PALETTE[0]);
+
+        // Also verify update_node_core allows color override on service
         let updated = update_node_core(
             &state,
             "service",
@@ -1989,5 +1983,44 @@ mod tests {
         )
         .unwrap();
         assert_eq!(updated.data["color"], "#123456");
+    }
+
+    #[tokio::test]
+    async fn test_create_edge_rejects_services() {
+        let (state, _) = setup_test_state();
+
+        // 1. service as source
+        let res_source = create_edge_core(
+            &state,
+            EdgeCreatePayload {
+                source_type: "service".into(),
+                source_id: "srv-1".into(),
+                target_type: "account".into(),
+                target_id: "acc-1".into(),
+                relation: "belongs_to".into(),
+                notes: None,
+            },
+        );
+        assert_eq!(
+            res_source,
+            Err(AuthError::Validation("Services cannot have edges".into()))
+        );
+
+        // 2. service as target
+        let res_target = create_edge_core(
+            &state,
+            EdgeCreatePayload {
+                source_type: "account".into(),
+                source_id: "acc-1".into(),
+                target_type: "service".into(),
+                target_id: "srv-1".into(),
+                relation: "belongs_to".into(),
+                notes: None,
+            },
+        );
+        assert_eq!(
+            res_target,
+            Err(AuthError::Validation("Services cannot have edges".into()))
+        );
     }
 }

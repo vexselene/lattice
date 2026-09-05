@@ -61,6 +61,8 @@ pub struct AccountNode {
     pub username: String,
     pub password_encrypted: Option<String>,
     pub service_id: String,
+    pub service_name: Option<String>,
+    pub service_color: Option<String>,
     pub primary_email_id: Option<String>,
     pub notes: Option<String>,
     pub tags: Vec<String>,
