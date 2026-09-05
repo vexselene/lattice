@@ -30,6 +30,8 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
     service_id: data.service_id || '',
     password: ''
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
+
 
   const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
@@ -77,6 +79,7 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setSaveError(null);
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
@@ -97,13 +100,26 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         
         if ((data as any).pendingConnection) {
           const { createEdge } = await import('../../../api/edges');
-          await createEdge({
-            source_type: (data as any).pendingConnection.sourceType,
-            source_id: (data as any).pendingConnection.sourceId,
-            target_type: 'account',
-            target_id: res.id,
-            relation: 'registered_with'
-          });
+          const pc = (data as any).pendingConnection;
+          if (pc.sourceId) {
+            // Dragged from source handle: existing node → new account node
+            await createEdge({
+              source_type: pc.sourceType,
+              source_id: pc.sourceId,
+              target_type: 'account',
+              target_id: res.id,
+              relation: 'registered_with'
+            });
+          } else if (pc.targetId) {
+            // Dragged from target handle: new account node → existing node
+            await createEdge({
+              source_type: 'account',
+              source_id: res.id,
+              target_type: pc.targetType,
+              target_id: pc.targetId,
+              relation: 'registered_with'
+            });
+          }
         }
       } else {
         await updateNode('account', data.id, {
@@ -114,10 +130,13 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      const msg = err?.details?.message || err?.error || err?.message || 'Save failed';
+      setSaveError(String(msg));
+      console.error('[AccountNode] handleSave error:', err);
     }
   };
+
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -211,11 +230,15 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
               <input value={editData.username} onChange={(e) => setEditData({ ...editData, username: e.target.value })} placeholder="Username" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
               <input value={editData.service_id} onChange={(e) => setEditData({ ...editData, service_id: e.target.value })} placeholder="Service ID" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
               <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} placeholder="Password (Optional)" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-purple-500 text-slate-900 dark:text-slate-100" />
+              {saveError && (
+                <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
+              )}
               <div className="flex gap-2 justify-end mt-2">
                 <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
                 <button onClick={handleSave} className="px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 rounded font-medium transition-colors shadow-sm">Save</button>
               </div>
             </div>
+
           ) : (
             <>
               <div className="flex flex-col gap-1 group">

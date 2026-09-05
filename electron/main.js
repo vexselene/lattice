@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const url = require('url');
 const native = require('../native');
 
 // Initialize native app data directory with Electron userData
@@ -35,7 +37,68 @@ ipcMain.handle('export-save-file', async (event, { content, defaultFilename }) =
   return { canceled: false, filePath };
 });
 
-function createWindow() {
+// Minimal static HTTP server for the built frontend.
+// Serving from http://localhost instead of file:// avoids the stricter canvas
+// security policy that taints canvases when drawImage() is used with blob URLs.
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js':   'application/javascript',
+  '.mjs':  'application/javascript',
+  '.css':  'text/css',
+  '.svg':  'image/svg+xml',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif':  'image/gif',
+  '.ico':  'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2':'font/woff2',
+  '.ttf':  'font/ttf',
+  '.json': 'application/json',
+};
+
+const DIST_DIR = path.join(__dirname, '../frontend/dist');
+
+function startStaticServer() {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      let pathname = url.parse(req.url).pathname;
+      // Normalise and default to index.html for SPA routing
+      if (!pathname || pathname === '/') pathname = '/index.html';
+      const filePath = path.join(DIST_DIR, pathname);
+
+      // Security: ensure the resolved path stays within DIST_DIR
+      if (!filePath.startsWith(DIST_DIR)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          // SPA fallback: serve index.html for any unknown path
+          fs.readFile(path.join(DIST_DIR, 'index.html'), (err2, fallback) => {
+            if (err2) { res.writeHead(404); res.end('Not found'); return; }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(fallback);
+          });
+          return;
+        }
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(data);
+      });
+    });
+
+    // Port 0 lets the OS pick a free port
+    server.listen(0, '127.0.0.1', () => {
+      resolve(server.address().port);
+    });
+  });
+}
+
+async function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -50,7 +113,8 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(__dirname, '../frontend/dist/index.html'));
+    const port = await startStaticServer();
+    win.loadURL(`http://127.0.0.1:${port}`);
   }
 }
 

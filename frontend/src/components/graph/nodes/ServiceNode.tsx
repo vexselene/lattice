@@ -97,13 +97,24 @@ export const ServiceNode: React.FC<ServiceNodeProps> = (props) => {
         
         if ((data as any).pendingConnection) {
           const { createEdge } = await import('../../../api/edges');
-          await createEdge({
-            source_type: (data as any).pendingConnection.sourceType,
-            source_id: (data as any).pendingConnection.sourceId,
-            target_type: 'service',
-            target_id: res.id,
-            relation: 'registered_with'
-          });
+          const pc = (data as any).pendingConnection;
+          if (pc.sourceId) {
+            await createEdge({
+              source_type: pc.sourceType,
+              source_id: pc.sourceId,
+              target_type: 'service',
+              target_id: res.id,
+              relation: 'registered_with'
+            });
+          } else if (pc.targetId) {
+            await createEdge({
+              source_type: 'service',
+              source_id: res.id,
+              target_type: pc.targetType,
+              target_id: pc.targetId,
+              relation: 'registered_with'
+            });
+          }
         }
       } else {
         await updateNode('service', data.id, {

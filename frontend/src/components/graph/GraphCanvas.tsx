@@ -89,6 +89,10 @@ const GraphInner = () => {
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
   const [exportModalScope, setExportModalScope] = useState<'full' | 'selected' | null>(null);
   const connectingNodeId = useRef<string | null>(null);
+  // Tracks whether the drag originated from a 'source' or 'target' handle.
+  // When dragging from a 'target' handle, the existing node becomes the target
+  // and the newly created node becomes the source.
+  const connectingHandleType = useRef<'source' | 'target' | null>(null);
 
   const [proximityTarget, setProximityTarget] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
@@ -147,6 +151,12 @@ const GraphInner = () => {
           return;
         }
 
+        // Remove any ghost temp nodes (created by drag-to-create but not yet saved)
+        const { nodes: storeNodes, removeTempNode } = useGraphStore.getState();
+        storeNodes
+          .filter((n) => (n.data as any).isEditing === true)
+          .forEach((n) => removeTempNode(n.data.id));
+
         if (activeMultiMode !== 'none') {
           setActiveMultiMode('none');
           setActiveChain(null);
@@ -166,6 +176,7 @@ const GraphInner = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeMultiMode, selectedNodeIds, setActiveChain, setSelectedNode, selectedEdgeIds]);
 
+
   useEffect(() => {
     const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
 
@@ -183,7 +194,21 @@ const GraphInner = () => {
         }
       });
       effectiveActiveChain = { nodeIds, edgeIds };
+    } else if (selectedNodeIds.size > 0 && activeMultiMode === 'none' && !activeChain) {
+      // Marquee / Ctrl+click node selection: highlight the selected nodes and
+      // all edges that touch at least one selected node, dimming the rest.
+      const nodeIds = new Set<string>(selectedNodeIds);
+      const edgeIds = new Set<string>();
+      storeEdges.forEach(e => {
+        if (selectedNodeIds.has(e.source_id) || selectedNodeIds.has(e.target_id)) {
+          edgeIds.add(e.id);
+          nodeIds.add(e.source_id);
+          nodeIds.add(e.target_id);
+        }
+      });
+      effectiveActiveChain = { nodeIds, edgeIds };
     }
+
 
     const flowNodes: FlowNode[] = storeNodes.map((n) => {
       let isHidden = false;
@@ -484,6 +509,12 @@ const GraphInner = () => {
       return;
     }
 
+    // Remove any ghost temp nodes (drag-to-create nodes abandoned without saving or cancelling)
+    const { nodes: currentStoreNodes, removeTempNode } = useGraphStore.getState();
+    currentStoreNodes
+      .filter((n) => (n.data as any).isEditing === true)
+      .forEach((n) => removeTempNode(n.data.id));
+
     if (activeMultiMode !== 'none') {
       setActiveMultiMode('none');
       setSelectedNodeIds(new Set());
@@ -557,9 +588,10 @@ const GraphInner = () => {
     }
   }, [storeNodes, deleteEdge, addEdge, isEditMode]);
 
-  const onConnectStart = useCallback((_: any, { nodeId }: any) => {
+  const onConnectStart = useCallback((_: any, { nodeId, handleType }: any) => {
     if (!isEditMode) return;
     connectingNodeId.current = nodeId;
+    connectingHandleType.current = handleType ?? 'source';
   }, [isEditMode]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
@@ -572,6 +604,7 @@ const GraphInner = () => {
       setConnectMenu({ x: clientX, y: clientY, sourceId: connectingNodeId.current });
     }
     connectingNodeId.current = null;
+    connectingHandleType.current = null;
   }, [isEditMode]);
 
   const { screenToFlowPosition, setCenter } = useReactFlow();
@@ -594,8 +627,8 @@ const GraphInner = () => {
 
   const handleCreateFromMenu = useCallback((type: string) => {
     if (!connectMenu) return;
-    const sourceNode = storeNodes.find(n => n.data.id === connectMenu.sourceId);
-    if (!sourceNode) return;
+    const existingNode = storeNodes.find(n => n.data.id === connectMenu.sourceId);
+    if (!existingNode) return;
 
     const position = screenToFlowPosition({ x: connectMenu.x, y: connectMenu.y });
     const tempId = `temp-${Date.now()}`;
@@ -604,16 +637,29 @@ const GraphInner = () => {
     savedPositions[tempId] = position;
     localStorage.setItem('node_positions', JSON.stringify(savedPositions));
 
+    // If the drag originated from a 'target' handle, the existing node is the target
+    // and the newly created node is the source. Otherwise existing = source, new = target.
+    const draggedFromTarget = connectingHandleType.current === 'target';
+
+    const pendingConnection = draggedFromTarget
+      ? {
+          // new node → existing node  (new node is source)
+          targetId: existingNode.data.id,
+          targetType: existingNode.type,
+        }
+      : {
+          // existing node → new node  (existing node is source)
+          sourceId: existingNode.data.id,
+          sourceType: existingNode.type,
+        };
+
     const newNode: any = {
       type,
       data: { 
         id: tempId, 
         isEditing: true, 
         isExpanded: true,
-        pendingConnection: {
-          sourceId: sourceNode.data.id,
-          sourceType: sourceNode.type
-        }
+        pendingConnection,
       },
     };
     

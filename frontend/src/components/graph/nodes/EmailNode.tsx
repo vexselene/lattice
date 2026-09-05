@@ -30,6 +30,7 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
     provider: data.provider || '',
     password: ''
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
   const { isEditMode: globalEditMode } = useUIStore();
@@ -79,6 +80,7 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setSaveError(null);
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
@@ -99,13 +101,26 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
         
         if ((data as any).pendingConnection) {
           const { createEdge } = await import('../../../api/edges');
-          await createEdge({
-            source_type: (data as any).pendingConnection.sourceType,
-            source_id: (data as any).pendingConnection.sourceId,
-            target_type: 'email',
-            target_id: res.id,
-            relation: 'registered_with'
-          });
+          const pc = (data as any).pendingConnection;
+          if (pc.sourceId) {
+            // Dragged from source handle: existing node → new email node
+            await createEdge({
+              source_type: pc.sourceType,
+              source_id: pc.sourceId,
+              target_type: 'email',
+              target_id: res.id,
+              relation: 'registered_with'
+            });
+          } else if (pc.targetId) {
+            // Dragged from target handle: new email node → existing node
+            await createEdge({
+              source_type: 'email',
+              source_id: res.id,
+              target_type: pc.targetType,
+              target_id: pc.targetId,
+              relation: 'registered_with'
+            });
+          }
         }
       } else {
         await updateNode('email', data.id, {
@@ -116,8 +131,10 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
       }
       await useGraphStore.getState().fetchGraph();
       setIsEditing(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      const msg = err?.details?.message || err?.error || err?.message || 'Save failed';
+      setSaveError(String(msg));
+      console.error('[EmailNode] handleSave error:', err);
     }
   };
 
@@ -214,6 +231,9 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
               <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} placeholder="Email Address" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
               <input value={editData.provider} onChange={(e) => setEditData({ ...editData, provider: e.target.value })} placeholder="Provider" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
               <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} placeholder="Password (Optional)" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
+              {saveError && (
+                <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
+              )}
               <div className="flex gap-2 justify-end mt-2">
                 <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
                 <button onClick={handleSave} className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium transition-colors shadow-sm">Save</button>
