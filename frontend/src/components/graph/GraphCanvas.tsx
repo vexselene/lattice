@@ -765,6 +765,7 @@ const GraphInner = () => {
         onSelectionEnd={onSelectionEnd}
         onSelectionChange={onSelectionChange}
         fitView
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />

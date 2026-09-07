@@ -55,16 +55,7 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPinned, setIsPinned] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastDblClickTimeRef = useRef<number>(0);
 
-  useEffect(() => {
-    return () => {
-      if (clickTimerRef.current) {
-        clearTimeout(clickTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if ((data as any).isEditing) {
@@ -110,45 +101,8 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
     setSelectedNode({ type: 'account', data } as any);
   };
 
-  const triggerDoubleClick = (e: React.MouseEvent) => {
-    const now = Date.now();
-    if (now - lastDblClickTimeRef.current < 350) {
-      return;
-    }
-    lastDblClickTimeRef.current = now;
-    e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('cancel-node-click'));
-    handleOpenSidebar(e);
-  };
 
-  const handlePillClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.react-flow__handle') || (e.target as HTMLElement).closest('button')) {
-      return;
-    }
-    e.stopPropagation();
 
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-      triggerDoubleClick(e);
-    } else {
-      clickTimerRef.current = setTimeout(() => {
-        clickTimerRef.current = null;
-        setIsPinned((prev) => !prev);
-      }, 250);
-    }
-  };
-
-  const handlePillDoubleClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.react-flow__handle') || (e.target as HTMLElement).closest('button')) {
-      return;
-    }
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
-    triggerDoubleClick(e);
-  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -324,6 +278,19 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
         isDimmed && isModalOpen ? 'pointer-events-none' : 'cursor-pointer'
       )}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('cancel-node-click'));
+        if (!isEditing) {
+          const nextState = !isExpanded;
+          setIsExpanded(nextState);
+          if (nextState) {
+            setExpandedNodeId(data.id);
+          } else {
+            setExpandedNodeId(null);
+          }
+        }
+      }}
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
       <div
@@ -331,8 +298,6 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
           "group relative flex items-center cursor-pointer transition-all duration-150 ease-out select-none",
           ringClass
         )}
-        onClick={handlePillClick}
-        onDoubleClick={handlePillDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -362,7 +327,7 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         {/* Fused single pill container — no gap or border between the two color zones */}
         <div
           className={clsx(
-            "rounded-full flex items-stretch overflow-hidden border border-purple-200/80 dark:border-purple-800/60 drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-200",
+            "rounded-full flex items-stretch overflow-hidden border border-purple-200/80 dark:border-purple-800/60 drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-200 max-w-[300px]",
             isPinned && "ring-2 ring-purple-400/80 dark:ring-purple-500/80 ring-offset-1 dark:ring-offset-slate-900"
           )}
         >
@@ -385,8 +350,8 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
           {hasService && (
             <div
               className={clsx(
-                "flex items-center transition-all duration-300 ease-in-out overflow-hidden shrink-0",
-                isRightExpanded ? "max-w-[160px] px-2.5" : "max-w-[8px] px-0"
+                "flex items-center transition-all duration-300 ease-in-out overflow-hidden shrink-0 relative pr-1",
+                isRightExpanded ? "max-w-[140px] pl-2.5" : "max-w-[8px] pl-0"
               )}
               style={{
                 backgroundColor: serviceColor,
@@ -401,6 +366,16 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
               >
                 {serviceName}
               </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsPinned(p => !p); }}
+                className={clsx(
+                  "ml-1 p-0.5 rounded-full text-white/70 hover:text-white hover:bg-white/20 transition-all z-20",
+                  isRightExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
+                )}
+                title={isPinned ? "Unpin service" : "Pin service open"}
+              >
+                <div className={clsx("w-2.5 h-2.5 border-2 border-current rounded-full", isPinned ? "bg-current" : "bg-transparent")} />
+              </button>
             </div>
           )}
         </div>
@@ -522,22 +497,48 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-1 group">
-                <span className="text-[11px] font-medium leading-tight text-slate-500">Service</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-700 dark:text-slate-300 break-all">
-                    {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.name || data.service_id || '—'}
-                  </span>
-                  {!!data.service_id && <CopyFieldButton value={data.service_id} />}
-                </div>
-              </div>
-
               {('password_encrypted' in data && data.password_encrypted) && (
-                <div className="mt-1">
-                  <span className="text-[11px] font-medium leading-tight text-slate-500 mb-1 block">Password</span>
+                <div className="mb-2">
+                  <span className="text-[11px] font-medium leading-tight text-slate-500 mb-1 block">Account Password</span>
                   <PasswordField nodeType="account" nodeId={data.id} />
                 </div>
               )}
+              
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col gap-1 group">
+                  <span className="text-[11px] font-medium leading-tight text-slate-500">Linked Service</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700 dark:text-slate-300 break-all">
+                      {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.name || data.service_id || '—'}
+                    </span>
+                    {!!data.service_id && <CopyFieldButton value={data.service_id} />}
+                  </div>
+                </div>
+
+                {hasService && (availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category && (
+                  <div className="flex flex-col gap-1 group">
+                    <span className="text-[11px] font-medium leading-tight text-slate-500">Category</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-700 dark:text-slate-300 break-all">
+                        {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category}
+                      </span>
+                      <CopyFieldButton value={(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category} />
+                    </div>
+                  </div>
+                )}
+
+                {hasService && (availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url && (
+                  <div className="flex flex-col gap-1 group">
+                    <span className="text-[11px] font-medium leading-tight text-slate-500">URL</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-700 dark:text-slate-300 break-all">
+                        {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url}
+                      </span>
+                      <CopyFieldButton value={(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url} />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {data.tags && data.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
