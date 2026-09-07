@@ -2,7 +2,7 @@ import CopyFieldButton from '../../shared/CopyFieldButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { PhoneNode as PhoneNodeType } from '../../../types/graph';
-import { Smartphone, Edit2, PanelRight, Trash2, X } from 'lucide-react';
+import { Smartphone, Edit2, PanelRight, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import clsx from 'clsx';
@@ -10,6 +10,7 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { PhoneNodeExport } from './PhoneNodeExport';
+import { EditableTags } from '../../shared/EditableTags';
 import { formatErrorMessage } from '../../../api/nodes';
 
 export interface PhoneNodeProps {
@@ -79,14 +80,25 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setSaveError(null);
+
+    const trimmedNumber = editData.number.trim();
+    if (!trimmedNumber) {
+      setSaveError('Phone number is required');
+      return;
+    }
+    if (!/^[\d\s+\-()./ext]+$/i.test(trimmedNumber)) {
+      setSaveError('Phone number contains invalid characters');
+      return;
+    }
+
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
 
       if (isNew) {
         const res = await createNode('phone', {
-          number: editData.number,
-          carrier: editData.carrier || undefined
+          number: trimmedNumber,
+          carrier: editData.carrier?.trim() || undefined
         });
         const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
         if (savedPositions[data.id]) {
@@ -119,8 +131,8 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
         }
       } else {
         await updateNode('phone', data.id, {
-          number: editData.number,
-          carrier: editData.carrier || undefined
+          number: trimmedNumber,
+          carrier: editData.carrier?.trim() || undefined
         });
       }
       await useGraphStore.getState().fetchGraph();
@@ -220,45 +232,75 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
 
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
-              <input value={editData.number} onChange={(e) => setEditData({ ...editData, number: e.target.value })} placeholder="Phone Number" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100" />
-              <input value={editData.carrier} onChange={(e) => setEditData({ ...editData, carrier: e.target.value })} placeholder="Carrier" className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100" />
+              <input
+                value={editData.number}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (/^[\d\s+\-()./ext]*$/i.test(val)) {
+                    setEditData({ ...editData, number: val });
+                  }
+                }}
+                placeholder="Phone Number"
+                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100 text-xs"
+              />
+              <input
+                value={editData.carrier}
+                onChange={(e) => setEditData({ ...editData, carrier: e.target.value })}
+                placeholder="Carrier"
+                className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-amber-500 text-slate-900 dark:text-slate-100 text-xs"
+              />
+              {data.tags && data.tags.length > 0 && (
+                <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <EditableTags nodeId={data.id} tags={data.tags} isEditMode={true} />
+                </div>
+              )}
               {saveError && (
                 <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
               )}
               <div className="flex gap-2 justify-end mt-2">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
-                <button onClick={handleSave} className="px-3 py-1.5 bg-amber-600 text-white hover:bg-amber-700 rounded font-medium transition-colors shadow-sm">Save</button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="px-3 py-1.5 bg-amber-600 text-white hover:bg-amber-700 rounded font-medium transition-colors shadow-sm"
+                >
+                  Save
+                </button>
               </div>
             </div>
           ) : (
-            <>
-              <div className="flex flex-col gap-1 group">
+            <div className="flex flex-col gap-2 pt-1">
+              {/* 1. Number */}
+              <div className="flex flex-col group">
+                <span className="text-[11px] font-medium leading-tight text-slate-500">Number</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.number || '—'}</span>
+                  {!!data.number && <CopyFieldButton value={data.number} />}
+                </div>
+              </div>
+
+              {/* 2. Carrier */}
+              <div className="flex flex-col group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Carrier</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-700 dark:text-slate-300 break-all">{data.carrier || '—'}</span>
                   {!!data.carrier && <CopyFieldButton value={data.carrier} />}
                 </div>
               </div>
-              
+
+              {/* 3. Tags */}
               {data.tags && data.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                  {data.tags.map(tag => (
-                    <span key={tag} className={`group/tag relative pl-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] uppercase tracking-wider font-bold rounded-md pr-1.5 transition-all duration-200 ease-out ${globalEditMode ? 'hover:pr-6' : ''}`}>
-                      {tag}
-                      {globalEditMode && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); useGraphStore.getState().removeTag(data.id, tag); }}
-                          className="absolute top-1/2 -translate-y-1/2 right-0.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all opacity-0 group-hover/tag:opacity-100 flex items-center justify-center p-0.5 rounded-full z-10"
-                          title="Remove Tag"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
+                <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  <EditableTags nodeId={data.id} tags={data.tags} isEditMode={globalEditMode} />
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

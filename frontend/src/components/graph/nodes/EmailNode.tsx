@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useStore } from '@xyflow/react';
 import { EmailNode as EmailNodeType } from '../../../types/graph';
-import { Mail, Edit2, PanelRight, Trash2, X } from 'lucide-react';
+import { Mail, Edit2, PanelRight, Trash2 } from 'lucide-react';
 import { useGraphStore } from '../../../stores/graphStore';
 import { useUIStore } from '../../../stores/uiStore';
 import CopyFieldButton from '../../shared/CopyFieldButton';
@@ -11,6 +11,7 @@ import { useNodeVisualState } from '../../../hooks/useVisualState';
 
 import { NodeVisualState } from '../../../hooks/useVisualState';
 import { EmailNodeExport } from './EmailNodeExport';
+import { EditableTags } from '../../shared/EditableTags';
 import { formatErrorMessage } from '../../../api/nodes';
 
 export interface EmailNodeProps {
@@ -82,14 +83,26 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setSaveError(null);
+
+    const trimmedAddress = editData.address.trim();
+    if (!trimmedAddress) {
+      setSaveError('Email address is required');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedAddress)) {
+      setSaveError('Please enter a valid email address');
+      return;
+    }
+
     try {
       const isNew = (data as any).isEditing;
       const { createNode, updateNode } = await import('../../../api/nodes');
 
       if (isNew) {
         const res = await createNode('email', {
-          address: editData.address,
-          provider: editData.provider || undefined,
+          address: trimmedAddress,
+          provider: editData.provider?.trim() || undefined,
           password_raw: editData.password || undefined
         });
         const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
@@ -125,8 +138,8 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
         }
       } else {
         await updateNode('email', data.id, {
-          address: editData.address,
-          provider: editData.provider || undefined,
+          address: trimmedAddress,
+          provider: editData.provider?.trim() || undefined,
           password_raw: editData.password || undefined
         });
       }
@@ -229,20 +242,63 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
 
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full min-w-0 mt-1">
-              <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} placeholder="Email Address" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
-              <input value={editData.provider} onChange={(e) => setEditData({ ...editData, provider: e.target.value })} placeholder="Provider" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
-              <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} placeholder="Password (Optional)" className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100" />
+              <input
+                value={editData.address}
+                onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+                placeholder="Email Address"
+                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+              />
+              <input
+                value={editData.provider}
+                onChange={(e) => setEditData({ ...editData, provider: e.target.value })}
+                placeholder="Provider"
+                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+              />
+              <input
+                type="password"
+                value={editData.password}
+                onChange={(e) => setEditData({ ...editData, password: e.target.value })}
+                placeholder="Password (Optional)"
+                className="w-full h-8 text-xs py-1 px-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+              />
+              {data.tags && data.tags.length > 0 && (
+                <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <EditableTags nodeId={data.id} tags={data.tags} isEditMode={true} />
+                </div>
+              )}
               {saveError && (
                 <p className="text-[10px] text-red-500 leading-tight break-words">{saveError}</p>
               )}
               <div className="flex gap-2 justify-end mt-2">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors">Cancel</button>
-                <button onClick={handleSave} className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium transition-colors shadow-sm">Save</button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium transition-colors shadow-sm"
+                >
+                  Save
+                </button>
               </div>
             </div>
           ) : (
-            <>
-              <div className="flex flex-col gap-1 group">
+            <div className="flex flex-col gap-2 pt-1">
+              {/* 1. Email address */}
+              <div className="flex flex-col group">
+                <span className="text-[11px] font-medium leading-tight text-slate-500">Email Address</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300 break-all">{data.address || '—'}</span>
+                  {!!data.address && <CopyFieldButton value={data.address} />}
+                </div>
+              </div>
+
+              {/* 2. Provider */}
+              <div className="flex flex-col group">
                 <span className="text-[11px] font-medium leading-tight text-slate-500">Provider</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-700 dark:text-slate-300 break-all">{data.provider || '—'}</span>
@@ -250,32 +306,19 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
                 </div>
               </div>
 
-              {('password_encrypted' in data && data.password_encrypted) && (
-                <div className="mt-1">
-                  <span className="text-[11px] font-medium leading-tight text-slate-500 mb-1 block">Password</span>
-                  <PasswordField nodeType="email" nodeId={data.id} />
-                </div>
-              )}
+              {/* 3. Password */}
+              <div className="flex flex-col group">
+                <span className="text-[11px] font-medium leading-tight text-slate-500 mb-1">Password</span>
+                <PasswordField nodeType="email" nodeId={data.id} />
+              </div>
 
+              {/* 4. Tags */}
               {data.tags && data.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                  {data.tags.map(tag => (
-                    <span key={tag} className={`group/tag relative pl-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] uppercase tracking-wider font-bold rounded-md pr-1.5 transition-all duration-200 ease-out ${globalEditMode ? 'hover:pr-6' : ''}`}>
-                      {tag}
-                      {globalEditMode && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); useGraphStore.getState().removeTag(data.id, tag); }}
-                          className="absolute top-1/2 -translate-y-1/2 right-0.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all opacity-0 group-hover/tag:opacity-100 flex items-center justify-center p-0.5 rounded-full z-10"
-                          title="Remove Tag"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
+                <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  <EditableTags nodeId={data.id} tags={data.tags} isEditMode={globalEditMode} />
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

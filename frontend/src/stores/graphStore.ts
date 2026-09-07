@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import { GraphNode, Edge } from '../types/graph';
-import { getGraph, deleteNode as apiDeleteNode } from '../api/nodes';
+import { getGraph, deleteNode as apiDeleteNode, getNodes } from '../api/nodes';
 
 interface GraphState {
   nodes: GraphNode[];
   edges: Edge[];
+  services: any[];
   selectedNode: GraphNode | null;
   isLoading: boolean;
   error: string | null;
   collapseAllSignal: number;
   fetchGraph: () => Promise<void>;
+  fetchServices: () => Promise<any[]>;
   setSelectedNode: (node: GraphNode | null) => void;
   deleteNode: (nodeType: string, nodeId: string) => Promise<void>;
   deleteEdge: (edgeId: string) => Promise<void>;
@@ -42,6 +44,7 @@ interface GraphState {
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
+  services: [],
   selectedNode: null,
   activeChain: null,
   expandedNodeId: null,
@@ -157,11 +160,30 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     }
   },
 
+  fetchServices: async () => {
+    try {
+      const services = await getNodes('service');
+      set({ services: services || [] });
+      return services || [];
+    } catch (err) {
+      console.error('Failed to fetch services:', err);
+      return [];
+    }
+  },
+
   fetchGraph: async () => {
     set({ isLoading: true, error: null });
     try {
-      const data = await getGraph();
-      set({ nodes: data.nodes, edges: data.edges, isLoading: false });
+      const [data, servicesData] = await Promise.all([
+        getGraph(),
+        getNodes('service').catch(() => [])
+      ]);
+      set({
+        nodes: data.nodes,
+        edges: data.edges,
+        services: servicesData || [],
+        isLoading: false
+      });
     } catch (err: any) {
       set({ error: err.message || 'Failed to fetch graph', isLoading: false });
     }

@@ -27,6 +27,7 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
       style={{
         display: 'inline-flex',
         alignItems: 'center',
+        borderRadius: '9999px',
         boxShadow: ringStyle,
         opacity: visualState?.opacity ?? 1,
         filter: visualState?.filter ?? 'none',

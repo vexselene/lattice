@@ -146,7 +146,7 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
     {
         let mut stmt = conn
             .prepare(
-                "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color, s.url AS service_url
                  FROM accounts a
                  LEFT JOIN services s ON a.service_id = s.id",
             )
@@ -166,12 +166,13 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                     row.get::<_, String>(9)?,
                     row.get::<_, Option<String>>(10)?,
                     row.get::<_, Option<String>>(11)?,
+                    row.get::<_, Option<String>>(12)?,
                 ))
             })
             .map_err(|e| AuthError::Database(e.to_string()))?;
 
         for r in rows {
-            let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color) =
+            let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color, service_url) =
                 r.map_err(|e| AuthError::Database(e.to_string()))?;
             let notes_plain = decrypt_notes(key, notes_cipher);
             let tags = parse_tags(&tags_str);
@@ -183,6 +184,7 @@ pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
                     "service_id": service_id,
                     "service_name": service_name,
                     "service_color": service_color,
+                    "service_url": service_url,
                     "primary_email_id": primary_email_id,
                     "notes": notes_plain,
                     "tags": tags,
@@ -377,7 +379,7 @@ pub fn get_nodes_core(
         NodeType::Account => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color, s.url AS service_url
                      FROM accounts a
                      LEFT JOIN services s ON a.service_id = s.id
                      LIMIT ?1 OFFSET ?2",
@@ -398,11 +400,12 @@ pub fn get_nodes_core(
                         row.get::<_, String>(9)?,
                         row.get::<_, Option<String>>(10)?,
                         row.get::<_, Option<String>>(11)?,
+                        row.get::<_, Option<String>>(12)?,
                     ))
                 })
                 .map_err(|e| AuthError::Database(e.to_string()))?;
             for r in rows {
-                let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color) =
+                let (id, username, service_id, primary_email_id, notes_cipher, tags_str, px, py, created_at, updated_at, service_name, service_color, service_url) =
                     r.map_err(|e| AuthError::Database(e.to_string()))?;
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 nodes.push(GraphNode {
@@ -413,6 +416,7 @@ pub fn get_nodes_core(
                         "service_id": service_id,
                         "service_name": service_name,
                         "service_color": service_color,
+                        "service_url": service_url,
                         "primary_email_id": primary_email_id,
                         "notes": notes_plain,
                         "tags": parse_tags(&tags_str),
@@ -579,7 +583,7 @@ fn query_node_by_id(
         NodeType::Account => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color
+                    "SELECT a.id, a.username, a.service_id, a.primary_email_id, a.notes, a.tags, a.position_x, a.position_y, a.created_at, a.updated_at, s.name AS service_name, s.color AS service_color, s.url AS service_url
                      FROM accounts a
                      LEFT JOIN services s ON a.service_id = s.id
                      WHERE a.id = ?1",
@@ -608,6 +612,8 @@ fn query_node_by_id(
                     row.get(10).map_err(|e| AuthError::Database(e.to_string()))?;
                 let service_color: Option<String> =
                     row.get(11).map_err(|e| AuthError::Database(e.to_string()))?;
+                let service_url: Option<String> =
+                    row.get(12).map_err(|e| AuthError::Database(e.to_string()))?;
 
                 let notes_plain = decrypt_notes(key, notes_cipher);
                 Ok(GraphNode {
@@ -618,6 +624,7 @@ fn query_node_by_id(
                         "service_id": service_id,
                         "service_name": service_name,
                         "service_color": service_color,
+                        "service_url": service_url,
                         "primary_email_id": primary_email_id,
                         "notes": notes_plain,
                         "tags": parse_tags(&tags_str),

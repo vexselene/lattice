@@ -33,6 +33,7 @@ export interface AccountNode extends BaseNode {
   service_id: string;
   service_name?: string | null;
   service_color?: string | null;
+  service_url?: string | null;
   primary_email_id?: string | null;
 }
 
