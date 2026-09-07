@@ -14,8 +14,9 @@ export const PasswordField: React.FC<PasswordFieldProps> = ({ nodeType, nodeId }
   const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const fetchPassword = async () => {
-    if (password) {
+  const handleToggleVisible = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (password !== null) {
       setVisible(!visible);
       return;
     }
@@ -31,42 +32,64 @@ export const PasswordField: React.FC<PasswordFieldProps> = ({ nodeType, nodeId }
     }
   };
 
-  const handleCopy = () => {
-    if (!password) return;
-    navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    let textToCopy = password;
+    if (textToCopy === null) {
+      setLoading(true);
+      try {
+        const res = await getNodePassword(nodeType, nodeId);
+        textToCopy = res.password || '';
+        setPassword(textToCopy);
+      } catch (err) {
+        console.error(err);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (textToCopy !== null) {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
-    <div className="flex items-center gap-2 mt-1">
-      <div className="flex-1 relative">
-        <input
-          type={visible ? "text" : "password"}
-          value={password !== null ? password : '••••••••••••'}
-          readOnly
-          className="w-full pl-3 pr-10 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
-        />
+    <div className="relative group/pwd mt-1">
+      <input
+        type={visible ? "text" : "password"}
+        value={visible ? (password ?? '') : '••••••••••••'}
+        readOnly
+        className={`w-full pl-3 pr-16 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200 focus:outline-none ${
+          visible ? 'select-all' : 'select-none'
+        }`}
+      />
+      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
         <button
-          onClick={fetchPassword}
+          onClick={handleCopy}
           disabled={loading}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          className={`p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-opacity duration-150 ${
+            (visible || copied) ? 'opacity-100' : 'opacity-0 group-hover/pwd:opacity-100'
+          }`}
+          title={copied ? "Copied!" : "Copy password"}
+          type="button"
+        >
+          {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={handleToggleVisible}
+          disabled={loading}
+          className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+          title={visible ? "Hide password" : "Show password"}
           type="button"
         >
           {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>
-      {password !== null && (
-        <button
-          onClick={handleCopy}
-          className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded"
-          type="button"
-        >
-          {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-        </button>
-      )}
     </div>
   );
 };
 
 export default PasswordField;
+

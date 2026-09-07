@@ -60,11 +60,14 @@ export function getExportEmphasis(mode: ExportMode): ExportEmphasisResult | null
   }
 
   const focus = getFocusState();
-  if (!focus.hasActiveFocus) {
-    return null;
-  }
-
   const included = getExportIncludedIds('dimmed');
+
+  if (!focus.hasActiveFocus) {
+    return {
+      highlightedIds: new Set<string>(),
+      dimmedIds: new Set<string>([...included.nodeIds, ...included.edgeIds]),
+    };
+  }
 
   const highlightedIds = new Set<string>([
     ...focus.rootNodeIds,

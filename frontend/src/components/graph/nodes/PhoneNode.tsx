@@ -165,10 +165,10 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
     <div
       style={{
         opacity,
-        filter,
+        ...(filter !== 'none' ? { filter } : {}),
       }}
       className={clsx(
-        'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
+        'relative flex flex-col items-center w-max max-w-[320px] transition-opacity duration-300 ease-out',
         isDimmed && isModalOpen ? 'pointer-events-none' : 'cursor-pointer'
       )}
       onDoubleClick={(e) => {
@@ -185,7 +185,7 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
         }
       }}
     >
-      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-200 cursor-pointer drop-shadow-[0_2px_8px_rgba(245,158,11,0.15)] dark:drop-shadow-none transition-all duration-150 ease-out", ringClass)}>
+      <div className={clsx("group relative rounded-full py-1.5 px-3 flex items-center gap-2 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-200 cursor-pointer shadow-[0_2px_8px_rgba(245,158,11,0.15)] dark:shadow-none border-2 border-transparent transition-colors duration-150 ease-out", ringClass)}>
         <Handle type="target" position={Position.Left} id="target-left" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         <Handle type="source" position={Position.Right} id="source-right" className={clsx("w-2.5 h-2.5 !bg-slate-400 transition-opacity duration-200", isConnecting ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
 
@@ -199,8 +199,8 @@ export const PhoneNode: React.FC<PhoneNodeProps> = (props) => {
 
       <div
         className={clsx(
-          'absolute top-full left-1/2 -translate-x-1/2 overflow-hidden transition-all duration-300 ease-out z-10',
-          isExpanded ? 'max-h-[400px] opacity-100 mt-1.5' : 'max-h-0 opacity-0 mt-0'
+          'absolute top-full left-0 right-0 mx-auto w-max overflow-hidden transition-all duration-300 ease-out z-10',
+          isExpanded ? 'max-h-[400px] opacity-100 mt-1.5' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
         )}
       >
         <div

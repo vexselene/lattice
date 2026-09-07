@@ -6,7 +6,7 @@ describe('computeNodeVisualState (pure function)', () => {
   it('returns normal default styling when no flags or sets are provided', () => {
     const state = computeNodeVisualState('node-1');
     expect(state.opacity).toBe(GRAPH_STYLE.opacity.normal);
-    expect(state.filter).toBe(`blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`);
+    expect(state.filter).toBe('none');
     expect(state.ringClass).toBe('');
     expect(state.isVisible).toBe(true);
     expect(state.isDimmed).toBe(false);

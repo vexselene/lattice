@@ -85,7 +85,7 @@ const GraphInner = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
   const { getLayoutedElements } = useGraphLayout();
 
-  const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string } | null>(null);
+  const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string, handleType: 'source' | 'target' } | null>(null);
   const [exportModalScope, setExportModalScope] = useState<'full' | 'selected' | null>(null);
   const connectingNodeId = useRef<string | null>(null);
   // Tracks whether the drag originated from a 'source' or 'target' handle.
@@ -603,10 +603,10 @@ const GraphInner = () => {
     }
   }, [storeNodes, deleteEdge, addEdge, isEditMode]);
 
-  const onConnectStart = useCallback((_: any, { nodeId, handleType }: any) => {
+  const onConnectStart = useCallback((_: any, { nodeId, handleType, handleId }: any) => {
     if (!isEditMode) return;
     connectingNodeId.current = nodeId;
-    connectingHandleType.current = handleType ?? 'source';
+    connectingHandleType.current = handleType ?? (handleId?.includes('target') ? 'target' : 'source');
   }, [isEditMode]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
@@ -616,7 +616,12 @@ const GraphInner = () => {
     if (targetIsPane) {
       const clientX = 'touches' in event ? event.touches[0].clientX : (event as MouseEvent).clientX;
       const clientY = 'touches' in event ? event.touches[0].clientY : (event as MouseEvent).clientY;
-      setConnectMenu({ x: clientX, y: clientY, sourceId: connectingNodeId.current });
+      setConnectMenu({
+        x: clientX,
+        y: clientY,
+        sourceId: connectingNodeId.current,
+        handleType: connectingHandleType.current ?? 'source'
+      });
     }
     connectingNodeId.current = null;
     connectingHandleType.current = null;
@@ -652,9 +657,9 @@ const GraphInner = () => {
     savedPositions[tempId] = position;
     localStorage.setItem('node_positions', JSON.stringify(savedPositions));
 
-    // If the drag originated from a 'target' handle, the existing node is the target
+    // If the drag originated from a 'target' handle (left handle), the existing node is the target
     // and the newly created node is the source. Otherwise existing = source, new = target.
-    const draggedFromTarget = connectingHandleType.current === 'target';
+    const draggedFromTarget = connectMenu.handleType === 'target';
 
     const pendingConnection = draggedFromTarget
       ? {
@@ -765,7 +770,7 @@ const GraphInner = () => {
         onSelectionEnd={onSelectionEnd}
         onSelectionChange={onSelectionChange}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+        fitViewOptions={{ padding: 0.35, maxZoom: 1 }}
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />

@@ -15,9 +15,7 @@ export interface AccountNodeExportProps {
 export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, theme, visualState }) => {
   const themeMode = theme || 'dark';
   const nodeTheme = GRAPH_STYLE.colors.node.account[themeMode];
-  const ringStyle = visualState?.ringClass
-    ? `0 0 0 2px ${nodeTheme.ring}, 0 0 0 3px ${themeMode === 'dark' ? '#0f172a' : '#ffffff'}`
-    : undefined;
+  const hasRing = !!visualState?.ringClass;
 
   const serviceName = (data as any).service_name;
   const serviceColor = (data as any).service_color || '#a855f7';
@@ -28,7 +26,6 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
         display: 'inline-flex',
         alignItems: 'center',
         borderRadius: '9999px',
-        boxShadow: ringStyle,
         opacity: visualState?.opacity ?? 1,
         filter: visualState?.filter ?? 'none',
         fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -44,12 +41,12 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
-          padding: serviceName ? '6px 10px 6px 12px' : '6px 12px',
-          borderRadius: serviceName ? '9999px 0 0 9999px' : '9999px',
+          padding: serviceName ? '6px 12px 6px 12px' : '6px 12px',
+          borderRadius: serviceName ? '9999px 12px 12px 9999px' : '9999px',
           backgroundColor: nodeTheme.bg,
           color: nodeTheme.text,
-          border: `1px solid ${nodeTheme.border}`,
-          borderRight: serviceName ? 'none' : `1px solid ${nodeTheme.border}`,
+          border: hasRing ? `2px solid ${nodeTheme.ring}` : 'none',
+          zIndex: 1,
         }}
       >
         <div
@@ -84,7 +81,8 @@ export const AccountNodeExport: React.FC<AccountNodeExportProps> = ({ data, them
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            padding: '6px 14px 6px 10px',
+            padding: '6px 14px 6px 12px',
+            marginLeft: '-8px',
             borderRadius: '0 9999px 9999px 0',
             backgroundColor: `${serviceColor}20`,
             color: serviceColor,

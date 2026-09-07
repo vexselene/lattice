@@ -80,7 +80,7 @@ export const GraphControls: React.FC<{ onLayout: () => void; selectedCount?: num
         <Download className="w-5 h-5" />
       </button>
 
-      <button onClick={() => fitView({ duration: 500 })} className={btnClass} title="Fit View">
+      <button onClick={() => fitView({ padding: 0.35, maxZoom: 1, duration: 500 })} className={btnClass} title="Fit View">
         <Maximize className="w-5 h-5" />
       </button>
       <button onClick={onLayout} className={btnClass} title="Auto Layout">

@@ -98,6 +98,53 @@ function getNodeColors(type: string | undefined, isDark: boolean) {
   return GRAPH_STYLE.colors.node[key][isDark ? 'dark' : 'light'];
 }
 
+// ─── Pure dimension calculator for SVG export ───
+export function getNodeExportDimensions(node: FlowNode): { width: number; height: number } {
+  const type = node.type || 'email';
+  const data = node.data as any;
+  const H = 32;
+
+  const paddingL = 6;
+  const paddingR = 12;
+  const iconCircleDiam = 22;
+  const gapIconText = 8;
+  const fontSize = 14;
+  const maxTextPx = 150;
+
+  let label: string;
+  switch (type) {
+    case 'email':   label = data.address  || 'New Email';   break;
+    case 'account': label = data.username || 'New Account'; break;
+    case 'phone':   label = data.number   || 'New Phone';   break;
+    case 'service': label = data.name     || 'New Service'; break;
+    default:        label = String(data.address || data.username || data.name || data.number || type);
+  }
+
+  const charPx = fontSize * 0.6;
+  const maxChars = Math.floor(maxTextPx / charPx);
+  const displayLabel = label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
+  const textW = Math.min(measureTextWidth(displayLabel, fontSize), maxTextPx);
+
+  const isDualPill = type === 'account' && Boolean(data.service_name || data.service_id);
+  if (isDualPill) {
+    const serviceName = data.service_name || data.service_id;
+    const sFontSize = 12;
+    const sMaxChars = Math.floor(maxTextPx / (sFontSize * 0.6));
+    const sDisplayLabel = serviceName.length > sMaxChars ? serviceName.slice(0, sMaxChars - 1) + '\u2026' : serviceName;
+    const sTextW = Math.min(measureTextWidth(sDisplayLabel, sFontSize), maxTextPx);
+
+    const padR1 = 8;
+    const W1 = paddingL + iconCircleDiam + gapIconText + textW + padR1;
+    const padL2 = 8;
+    const padR2 = 12;
+    const W2 = padL2 + sTextW + padR2;
+    return { width: W1 + W2, height: H };
+  }
+
+  const pillW = paddingL + iconCircleDiam + gapIconText + textW + paddingR;
+  return { width: pillW, height: H };
+}
+
 // ─── Pure-SVG node pill renderer ───
 function renderNodeAsSvg(
   node: FlowNode,
@@ -180,15 +227,10 @@ function renderNodeAsSvg(
       `<line x1="${W1}" y1="0" x2="${W1}" y2="${H}" stroke="${colors.border}" stroke-width="1"/>`
     );
 
-    // 4. Outer border
-    parts.push(
-      `<rect x="0" y="0" width="${totalW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="none" stroke="${colors.border}" stroke-width="1"/>`
-    );
-
-    // Selection ring
+    // 4. Outer border (only when selected)
     if (hasRing) {
       parts.push(
-        `<rect x="-2" y="-2" width="${totalW + 4}" height="${H + 4}" rx="${H / 2 + 2}" ry="${H / 2 + 2}" fill="none" stroke="${ringColor}" stroke-width="2" opacity="0.8"/>`
+        `<rect x="0" y="0" width="${totalW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="none" stroke="${ringColor}" stroke-width="2"/>`
       );
     }
 
@@ -222,17 +264,10 @@ function renderNodeAsSvg(
     return `<g transform="translate(${nodeX},${nodeY})" opacity="${opacity}"${filterStr}>\n  ${parts.join('\n  ')}\n</g>`;
   }
 
-  // Pill fill + border
+  // Pill fill + border (border only when selected)
   parts.push(
-    `<rect x="0" y="0" width="${pillW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="${colors.bg}" stroke="${colors.border}" stroke-width="1"/>`
+    `<rect x="0" y="0" width="${pillW}" height="${H}" rx="${H / 2}" ry="${H / 2}" fill="${colors.bg}" stroke="${hasRing ? ringColor : 'none'}" stroke-width="${hasRing ? 2 : 0}"/>`
   );
-
-  // Selection ring
-  if (hasRing) {
-    parts.push(
-      `<rect x="-2" y="-2" width="${pillW + 4}" height="${H + 4}" rx="${H / 2 + 2}" ry="${H / 2 + 2}" fill="none" stroke="${ringColor}" stroke-width="2" opacity="0.8"/>`
-    );
-  }
 
   // Icon background circle
   parts.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconCircleR}" fill="${colors.iconBg}"/>`);
@@ -282,19 +317,15 @@ export function graphToSvgString(
   let includedEdgeIds: Set<string>;
 
   const storeResult = getExportIncludedIds(mode);
-  if (storeResult.nodeIds.size > 0 || storeResult.edgeIds.size > 0) {
+  if (mode === 'isolated') {
+    includedNodeIds = storeResult.nodeIds;
+    includedEdgeIds = storeResult.edgeIds;
+  } else if (storeResult.nodeIds.size > 0 || storeResult.edgeIds.size > 0) {
     includedNodeIds = storeResult.nodeIds;
     includedEdgeIds = storeResult.edgeIds;
   } else {
-    if (mode === 'all' || mode === 'dimmed') {
-      includedNodeIds = new Set(nodes.map((n) => n.id));
-      includedEdgeIds = new Set(edges.map((e) => e.id));
-    } else {
-      includedNodeIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
-      includedEdgeIds = new Set(
-        edges.filter((e) => includedNodeIds.has(e.source) && includedNodeIds.has(e.target)).map((e) => e.id)
-      );
-    }
+    includedNodeIds = new Set(nodes.map((n) => n.id));
+    includedEdgeIds = new Set(edges.map((e) => e.id));
   }
 
   // Exclude hidden nodes
@@ -309,21 +340,21 @@ export function graphToSvgString(
   const includedNodes = nodes.filter((n) => includedNodeIds.has(n.id));
   const includedEdges = edges.filter((e) => includedEdgeIds.has(e.id));
 
-  if (includedNodes.length === 0) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`;
-  }
-
   // 2. Visual emphasis
+  const focus = getFocusState();
   const emphasis = getExportEmphasis(mode);
-  const dimmedIds      = emphasis ? emphasis.dimmedIds      : new Set<string>();
+  let dimmedIds        = emphasis ? emphasis.dimmedIds      : new Set<string>();
   const highlightedIds = emphasis ? emphasis.highlightedIds : new Set<string>();
+
+  if (mode === 'dimmed' && !focus.hasActiveFocus) {
+    dimmedIds = new Set<string>([...includedNodeIds, ...includedEdgeIds]);
+  }
 
   const storeSelectedNodeIds = useGraphStore.getState().selectedNodeIds;
   const storeSelectedEdgeIds = useGraphStore.getState().selectedEdgeIds;
   const activeSelectedNodeIds = new Set<string>([...storeSelectedNodeIds, ...nodes.filter((n) => n.selected).map((n) => n.id)]);
   const activeSelectedEdgeIds = new Set<string>([...storeSelectedEdgeIds, ...edges.filter((e) => e.selected).map((e) => e.id)]);
 
-  const focus = getFocusState();
   const focusedNodeIds = new Set<string>([...focus.rootNodeIds, ...focus.neighborNodeIds]);
   const focusedEdgeIds = new Set<string>([...focus.rootEdgeIds, ...focus.neighborEdgeIds]);
 
@@ -337,13 +368,43 @@ export function graphToSvgString(
     ringNodeIds = config.keepHighlightRings ? activeSelectedNodeIds : new Set();
   }
 
-  // 3. Bounds and padding
-  const bounds = getNodesBounds(includedNodes);
-  const padding = GRAPH_STYLE.export.paddingPx;
-  const exportWidth  = Math.ceil(bounds.width  + padding * 2);
-  const exportHeight = Math.ceil(bounds.height + padding * 2);
-  const offsetX = -bounds.x + padding;
-  const offsetY = -bounds.y + padding;
+  // 3. Bounds, minimum dimensions, and 16:9 aspect ratio
+  const MIN_WIDTH  = (GRAPH_STYLE.export as any).minWidthPx  ?? 960;
+  const MIN_HEIGHT = (GRAPH_STYLE.export as any).minHeightPx ?? 540;
+  const padding    = GRAPH_STYLE.export.paddingPx;
+
+  let exportWidth = MIN_WIDTH;
+  let exportHeight = MIN_HEIGHT;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (includedNodes.length > 0) {
+    const nodesForBounds = includedNodes.map((n) => {
+      const dims = getNodeExportDimensions(n);
+      return {
+        ...n,
+        measured: { width: dims.width, height: dims.height },
+        width: dims.width,
+        height: dims.height,
+      };
+    });
+    const bounds = getNodesBounds(nodesForBounds);
+    const contentWidth  = Math.ceil(bounds.width  + padding * 2);
+    const contentHeight = Math.ceil(bounds.height + padding * 2);
+
+    exportWidth  = Math.max(contentWidth, MIN_WIDTH);
+    exportHeight = Math.max(contentHeight, MIN_HEIGHT);
+
+    // If narrower than 16:9, expand width to maintain at least 16:9
+    if (exportWidth / exportHeight < 16 / 9) {
+      exportWidth = Math.ceil(exportHeight * (16 / 9));
+    }
+
+    const extraX = Math.max(0, exportWidth - contentWidth);
+    const extraY = Math.max(0, exportHeight - contentHeight);
+    offsetX = -bounds.x + padding + extraX / 2;
+    offsetY = -bounds.y + padding + extraY / 2;
+  }
 
   // 4. Theme & Grid
   const isDark    = config.theme === 'dark';
@@ -361,14 +422,17 @@ export function graphToSvgString(
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
 
-    const sNodeWidth  = sourceNode?.measured?.width  || 180;
-    const sNodeHeight = sourceNode?.measured?.height || 32;
-    const tNodeHeight = targetNode?.measured?.height || 32;
+    const sDims = sourceNode ? getNodeExportDimensions(sourceNode) : { width: 180, height: 32 };
+    const tDims = targetNode ? getNodeExportDimensions(targetNode) : { width: 180, height: 32 };
 
-    const sourceX = ((edge as any).sourceX ?? (sourceNode ? sourceNode.position.x + sNodeWidth : 0)) + offsetX;
-    const sourceY = ((edge as any).sourceY ?? (sourceNode ? sourceNode.position.y + sNodeHeight / 2 : 0)) + offsetY;
-    const targetX = ((edge as any).targetX ?? (targetNode ? targetNode.position.x : 0)) + offsetX;
-    const targetY = ((edge as any).targetY ?? (targetNode ? targetNode.position.y + tNodeHeight / 2 : 0)) + offsetY;
+    const sNodeWidth  = sDims.width;
+    const sNodeHeight = sDims.height;
+    const tNodeHeight = tDims.height;
+
+    const sourceX = (sourceNode ? sourceNode.position.x + sNodeWidth : 0) + offsetX;
+    const sourceY = (sourceNode ? sourceNode.position.y + sNodeHeight / 2 : 0) + offsetY;
+    const targetX = (targetNode ? targetNode.position.x : 0) + offsetX;
+    const targetY = (targetNode ? targetNode.position.y + tNodeHeight / 2 : 0) + offsetY;
 
     const [edgePath, labelX, labelY] = getBezierPath({
       sourceX, sourceY, sourcePosition: Position.Right,

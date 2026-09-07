@@ -142,6 +142,8 @@ export const GRAPH_STYLE = {
     proximityThresholdPx: 120 
   },
   export: { 
-    paddingPx: 60 
+    paddingPx: 60,
+    minWidthPx: 960,
+    minHeightPx: 540,
   },
 } as const;

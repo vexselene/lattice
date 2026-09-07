@@ -15,9 +15,7 @@ export interface PhoneNodeExportProps {
 export const PhoneNodeExport: React.FC<PhoneNodeExportProps> = ({ data, theme, visualState }) => {
   const themeMode = theme || 'dark';
   const nodeTheme = GRAPH_STYLE.colors.node.phone[themeMode];
-  const ringStyle = visualState?.ringClass
-    ? `0 0 0 2px ${nodeTheme.ring}, 0 0 0 3px ${themeMode === 'dark' ? '#0f172a' : '#ffffff'}`
-    : undefined;
+  const hasRing = !!visualState?.ringClass;
 
   return (
     <div
@@ -29,8 +27,7 @@ export const PhoneNodeExport: React.FC<PhoneNodeExportProps> = ({ data, theme, v
         borderRadius: '9999px',
         backgroundColor: nodeTheme.bg,
         color: nodeTheme.text,
-        border: `1px solid ${nodeTheme.border}`,
-        boxShadow: ringStyle,
+        border: hasRing ? `2px solid ${nodeTheme.ring}` : 'none',
         opacity: visualState?.opacity ?? 1,
         filter: visualState?.filter ?? 'none',
         fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",

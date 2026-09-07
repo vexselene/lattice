@@ -120,6 +120,17 @@ describe('exportSelection', () => {
       expect(result.nodeIds).toEqual(new Set(['node-1', 'node-2']));
       expect(result.edgeIds).toEqual(new Set(['edge-1']));
     });
+
+    it('returns empty nodeIds and edgeIds when mode is "isolated" and nothing is selected', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(),
+        selectedEdgeIds: new Set(),
+        activeChain: null,
+      });
+      const result = getExportIncludedIds('isolated');
+      expect(result.nodeIds).toEqual(new Set());
+      expect(result.edgeIds).toEqual(new Set());
+    });
   });
 
   describe('getExportEmphasis', () => {
@@ -129,6 +140,18 @@ describe('exportSelection', () => {
 
     it('returns null when mode is "isolated"', () => {
       expect(getExportEmphasis('isolated')).toBeNull();
+    });
+
+    it('returns all nodes and edges in dimmedIds when mode is "dimmed" and no nodes are focused/selected', () => {
+      useGraphStore.setState({
+        selectedNodeIds: new Set(),
+        selectedEdgeIds: new Set(),
+        activeChain: null,
+      });
+      const emphasis = getExportEmphasis('dimmed');
+      expect(emphasis).not.toBeNull();
+      expect(emphasis!.highlightedIds).toEqual(new Set());
+      expect(emphasis!.dimmedIds).toEqual(new Set(['node-1', 'node-2', 'node-3', 'edge-1', 'edge-2']));
     });
 
     it('returns highlightedIds and dimmedIds based on activeChain when mode is "dimmed"', () => {

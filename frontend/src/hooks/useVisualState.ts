@@ -4,11 +4,11 @@ import { GRAPH_STYLE } from '../config/graphStyleConfig';
 import { getFocusState } from '../lib/focusState';
 
 export const RING_CLASSES: Record<string, string> = {
-  email: 'ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
-  account: 'ring-2 ring-purple-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
-  phone: 'ring-2 ring-amber-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
-  service: 'ring-2 ring-emerald-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
-  default: 'ring-2 ring-indigo-500/80 ring-offset-1 ring-offset-white dark:ring-offset-slate-900',
+  email: '!border-indigo-600 dark:!border-indigo-400',
+  account: '!border-purple-600 dark:!border-purple-400',
+  phone: '!border-amber-600 dark:!border-amber-400',
+  service: '!border-emerald-600 dark:!border-emerald-400',
+  default: '!border-indigo-600 dark:!border-indigo-400',
 };
 
 export interface NodeVisualState {
@@ -61,7 +61,7 @@ export function computeNodeVisualState(
 
   const filter = isDimmed
     ? `blur(${GRAPH_STYLE.blur.dimmed}) grayscale(${GRAPH_STYLE.grayscale.dimmed})`
-    : `blur(${GRAPH_STYLE.blur.none}) grayscale(${GRAPH_STYLE.grayscale.none})`;
+    : 'none';
 
   const ringClass = effectiveShowRing
     ? (RING_CLASSES[nodeType] || RING_CLASSES.default)

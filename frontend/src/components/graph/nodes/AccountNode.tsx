@@ -27,7 +27,18 @@ export interface AccountNodeProps {
 export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   const { data, id: _id, exportMode } = props;
 
-  const { services: storeServices, removeTempNode, deleteNode, setSelectedNode, collapseAllSignal, setExpandedNodeId, expandedNodeId } = useGraphStore();
+  const { 
+    services: storeServices, 
+    removeTempNode, 
+    deleteNode, 
+    setSelectedNode, 
+    collapseAllSignal, 
+    setExpandedNodeId, 
+    expandedNodeId,
+    selectedNodeIds,
+    activeChain,
+    selectedNode
+  } = useGraphStore();
 
   const availableServices = storeServices || [];
 
@@ -251,16 +262,21 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
   const serviceColor = data.service_color || matchedService?.color || (matchedService?.data as any)?.color || '#3B82F6';
   const serviceUrl = (data as any).service_url || matchedService?.url || (matchedService?.data as any)?.url || '';
   const hasService = Boolean(serviceName);
-  const isRightExpanded = hasService && (isPinned || isExpanded || isHovered);
+  const isSelectedOrHighlighted =
+    (selectedNodeIds?.has(data.id) ?? false) ||
+    Boolean(activeChain?.nodeIds.has(data.id)) ||
+    selectedNode?.data?.id === data.id;
+
+  const isRightExpanded = hasService && (isPinned || isExpanded || isHovered || isSelectedOrHighlighted);
 
   return (
     <div
       style={{
         opacity,
-        filter,
+        ...(filter !== 'none' ? { filter } : {}),
       }}
       className={clsx(
-        'relative flex flex-col w-max max-w-[320px] transition-all duration-300 ease-out',
+        'relative flex flex-col items-center w-max max-w-[320px] transition-opacity duration-300 ease-out',
         isDimmed && isModalOpen ? 'pointer-events-none' : 'cursor-pointer'
       )}
       onDoubleClick={(e) => {
@@ -279,7 +295,7 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
     >
       {/* Pill row — handles are anchored HERE so they never shift */}
       <div
-        className="group relative flex items-center cursor-pointer transition-all duration-150 ease-out select-none"
+        className="group relative flex items-center cursor-pointer select-none"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -309,15 +325,19 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
         {/* Fused single pill container — no gap or border between the two color zones */}
         <div
           className={clsx(
-            "rounded-full flex items-stretch overflow-hidden border border-purple-200/80 dark:border-purple-800/60 drop-shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:drop-shadow-none transition-all duration-200 max-w-[300px]",
+            "rounded-full flex items-stretch overflow-hidden border-2 border-transparent shadow-[0_2px_8px_rgba(168,85,247,0.15)] dark:shadow-none transition-colors duration-150 max-w-[300px]",
             ringClass
           )}
         >
           {/* Left segment - Account */}
           <div
             className={clsx(
-              "py-1.5 pl-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 shrink-0",
-              hasService ? "pr-2" : "pr-3"
+              "py-1.5 pl-3 flex items-center gap-2 bg-purple-50 text-purple-950 dark:bg-purple-950 dark:text-purple-200 shrink-0 z-10 relative transition-[padding,border-radius,box-shadow] duration-300 ease-in-out",
+              hasService
+                ? isRightExpanded
+                  ? "pr-2 rounded-l-full rounded-r-none shadow-none"
+                  : "pr-3 rounded-full shadow-[2px_0_4px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_6px_rgba(0,0,0,0.25)]"
+                : "pr-3 rounded-full"
             )}
           >
             <div className="p-1 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300 flex-shrink-0">
@@ -332,8 +352,10 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
           {hasService && (
             <div
               className={clsx(
-                "flex items-center transition-all duration-300 ease-in-out overflow-hidden shrink-0 relative pr-1",
-                isRightExpanded ? "max-w-[140px] pl-2.5" : "max-w-[8px] pl-0"
+                "flex items-center transition-[max-width,margin,padding] duration-300 ease-in-out overflow-hidden shrink-0 relative pr-1",
+                isRightExpanded
+                  ? "max-w-[140px] ml-0 pl-2.5"
+                  : "max-w-[20px] -ml-3 pl-4"
               )}
               style={{
                 backgroundColor: serviceColor,
@@ -365,8 +387,8 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
 
       <div
         className={clsx(
-          'absolute top-full left-1/2 -translate-x-1/2 overflow-hidden transition-all duration-300 ease-out z-10',
-          isExpanded ? 'max-h-[400px] opacity-100 mt-1.5' : 'max-h-0 opacity-0 mt-0'
+          'absolute top-full left-0 right-0 mx-auto w-max overflow-hidden transition-all duration-300 ease-out z-10',
+          isExpanded ? 'max-h-[400px] opacity-100 mt-1.5' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
         )}
       >
         <div
