@@ -263,10 +263,11 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
 
   if (!isVisible) return null;
 
-  const hasService = Boolean(data.service_name || (data as any).service_name);
-  const serviceName = data.service_name || (data as any).service_name || '';
-  const serviceColor = data.service_color || (data as any).service_color || '#3B82F6';
-  const isRightExpanded = hasService && (isPinned || isHovered);
+  const matchedService = availableServices.find((s) => s.data.id === data.service_id);
+  const serviceName = data.service_name || (matchedService?.data as any)?.name || '';
+  const serviceColor = data.service_color || (matchedService?.data as any)?.color || '#3B82F6';
+  const hasService = Boolean(serviceName);
+  const isRightExpanded = hasService && (isPinned || isExpanded || isHovered);
 
   return (
     <div
@@ -509,32 +510,32 @@ export const AccountNode: React.FC<AccountNodeProps> = (props) => {
                   <span className="text-[11px] font-medium leading-tight text-slate-500">Linked Service</span>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-700 dark:text-slate-300 break-all">
-                      {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.name || data.service_id || '—'}
+                      {serviceName || '—'}
                     </span>
-                    {!!data.service_id && <CopyFieldButton value={data.service_id} />}
+                    {!!serviceName && <CopyFieldButton value={serviceName} />}
                   </div>
                 </div>
 
-                {hasService && (availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category && (
+                {hasService && (matchedService?.data as any)?.category && (
                   <div className="flex flex-col gap-1 group">
                     <span className="text-[11px] font-medium leading-tight text-slate-500">Category</span>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-700 dark:text-slate-300 break-all">
-                        {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category}
+                        {(matchedService?.data as any)?.category}
                       </span>
-                      <CopyFieldButton value={(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.category} />
+                      <CopyFieldButton value={(matchedService?.data as any)?.category} />
                     </div>
                   </div>
                 )}
 
-                {hasService && (availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url && (
+                {hasService && (matchedService?.data as any)?.url && (
                   <div className="flex flex-col gap-1 group">
                     <span className="text-[11px] font-medium leading-tight text-slate-500">URL</span>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-700 dark:text-slate-300 break-all">
-                        {(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url}
+                        {(matchedService?.data as any)?.url}
                       </span>
-                      <CopyFieldButton value={(availableServices.find((s) => s.data.id === data.service_id)?.data as any)?.url} />
+                      <CopyFieldButton value={(matchedService?.data as any)?.url} />
                     </div>
                   </div>
                 )}
