@@ -30,12 +30,40 @@ pub fn app_data_dir() -> Result<PathBuf, AuthError> {
     Ok(dir)
 }
 
-/// Resolves the path to the encrypted SQLCipher database (`lattice.db`).
-pub fn db_path() -> Result<PathBuf, AuthError> {
-    Ok(app_data_dir()?.join("lattice.db"))
+/// Resolves the vault directory (`<app_data_dir>/vault`).
+pub fn vault_dir() -> Result<PathBuf, AuthError> {
+    let dir = app_data_dir()?.join("vault");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| AuthError::Io(e.to_string()))?;
+    }
+    Ok(dir)
 }
 
-/// Resolves the path to the master Argon2id salt file (`lattice.salt`).
-pub fn salt_path() -> Result<PathBuf, AuthError> {
-    Ok(app_data_dir()?.join("lattice.salt"))
+/// Resolves the path to the encrypted SQLCipher vault database (`<vault_dir>/vault.db`).
+pub fn vault_db_path() -> Result<PathBuf, AuthError> {
+    Ok(vault_dir()?.join("vault.db"))
+}
+
+/// Resolves the path to the vault Argon2id salt file (`<vault_dir>/vault.salt`).
+pub fn vault_salt_path() -> Result<PathBuf, AuthError> {
+    Ok(vault_dir()?.join("vault.salt"))
+}
+
+/// Resolves the canvases directory (`<app_data_dir>/canvases`).
+pub fn canvases_dir() -> Result<PathBuf, AuthError> {
+    let dir = app_data_dir()?.join("canvases");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| AuthError::Io(e.to_string()))?;
+    }
+    Ok(dir)
+}
+
+/// Resolves the path to a canvas SQLCipher database (`<canvases_dir>/<canvas_id>.db`).
+pub fn canvas_db_path(canvas_id: &str) -> Result<PathBuf, AuthError> {
+    Ok(canvases_dir()?.join(format!("{}.db", canvas_id)))
+}
+
+/// Resolves the path to a canvas Argon2id salt file (`<canvases_dir>/<canvas_id>.salt`).
+pub fn canvas_salt_path(canvas_id: &str) -> Result<PathBuf, AuthError> {
+    Ok(canvases_dir()?.join(format!("{}.salt", canvas_id)))
 }

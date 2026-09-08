@@ -47,8 +47,9 @@ pub const SERVICE_PALETTE: &[&str] = &[
 
 pub fn get_graph_core(state: &Mutex<AppState>) -> Result<GraphData, AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     let mut nodes = Vec::new();
 
@@ -236,8 +237,9 @@ pub fn get_nodes_core(
 ) -> Result<Vec<GraphNode>, AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     let offset = skip.unwrap_or(0);
     let count = limit.unwrap_or(100);
@@ -648,8 +650,9 @@ pub fn get_node_core(
 ) -> Result<GraphNode, AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     query_node_by_id(conn, key, nt, node_id)
 }
@@ -661,8 +664,9 @@ pub fn create_node_core(
 ) -> Result<GraphNode, AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -771,8 +775,9 @@ pub fn update_node_core(
 ) -> Result<GraphNode, AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -1019,10 +1024,8 @@ pub fn delete_node_core(
 ) -> Result<(), AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let mut s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    if s.encryption_key.is_none() || s.db.is_none() {
-        return Err(AuthError::NotUnlocked);
-    }
-    let conn = s.db.as_mut().unwrap();
+    let canvas = s.active_canvas.as_mut().ok_or(AuthError::NotUnlocked)?;
+    let conn = &mut canvas.db;
 
     let tx = conn.transaction().map_err(|e| AuthError::Database(e.to_string()))?;
 
@@ -1055,8 +1058,9 @@ pub fn get_node_password_core(
 ) -> Result<Option<String>, AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     match nt {
         NodeType::Phone | NodeType::Service => Ok(None),
@@ -1118,7 +1122,8 @@ pub fn update_node_position_core(
 ) -> Result<(), AuthError> {
     let nt = NodeType::parse(node_type).map_err(AuthError::Validation)?;
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let affected = match nt {
         NodeType::Email => conn.execute(
@@ -1152,7 +1157,8 @@ pub fn get_edges_core(
     node_id: Option<String>,
 ) -> Result<Vec<Edge>, AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let mut edges = Vec::new();
     if let (Some(nt), Some(nid)) = (node_type, node_id) {
@@ -1218,7 +1224,8 @@ pub fn create_edge_core(
     }
 
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
@@ -1256,7 +1263,8 @@ pub fn update_edge_core(
     payload: EdgeUpdatePayload,
 ) -> Result<Edge, AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let mut edge: Edge = conn
         .query_row(
@@ -1300,7 +1308,8 @@ pub fn update_edge_core(
 
 pub fn delete_edge_core(state: &Mutex<AppState>, edge_id: &str) -> Result<(), AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let affected = conn
         .execute("DELETE FROM edges WHERE id = ?1", rusqlite::params![edge_id])
@@ -1319,7 +1328,8 @@ pub fn get_subgraph_core(
     _depth: Option<u32>,
 ) -> Result<serde_json::Value, AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
 
     let mut stmt = conn
         .prepare(
@@ -1356,8 +1366,9 @@ pub fn search_core(
     types: Option<Vec<String>>,
 ) -> Result<Vec<GraphNode>, AuthError> {
     let s = state.lock().map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = s.db.as_ref().ok_or(AuthError::NotUnlocked)?;
-    let key = s.encryption_key.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let canvas = s.active_canvas.as_ref().ok_or(AuthError::NotUnlocked)?;
+    let conn = &canvas.db;
+    let key = &canvas.key;
 
     let q_lower = query.trim().to_lowercase();
     if q_lower.is_empty() {
@@ -1751,14 +1762,19 @@ mod tests {
     use zeroize::Zeroizing;
     use crate::schema::create_schema;
 
+    use crate::state::ActiveCanvas;
+
     fn setup_test_state() -> (Mutex<AppState>, [u8; 32]) {
         let conn = Connection::open_in_memory().unwrap();
         create_schema(&conn).unwrap();
 
         let key = [42u8; 32];
         let mut app_state = AppState::new();
-        app_state.db = Some(conn);
-        app_state.encryption_key = Some(Zeroizing::new(key));
+        app_state.active_canvas = Some(ActiveCanvas {
+            id: "test-canvas".to_string(),
+            db: conn,
+            key: Zeroizing::new(key),
+        });
 
         (Mutex::new(app_state), key)
     }
@@ -1793,7 +1809,7 @@ mod tests {
         // 2. Verify raw DB row has ENCRYPTED password and notes (NOT plaintext!)
         {
             let s = state.lock().unwrap();
-            let conn = s.db.as_ref().unwrap();
+            let conn = &s.active_canvas.as_ref().unwrap().db;
             let (raw_pwd, raw_notes): (String, String) = conn
                 .query_row(
                     "SELECT password_encrypted, notes FROM emails WHERE id = ?1",

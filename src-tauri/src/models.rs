@@ -183,6 +183,15 @@ pub struct EdgeUpdatePayload {
     pub notes: Option<String>,
 }
 
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasSummary {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

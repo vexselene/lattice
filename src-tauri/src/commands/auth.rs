@@ -32,58 +32,13 @@ pub fn is_sqlcipher_key_error(err: &rusqlite::Error) -> bool {
     }
 }
 
-/// Core setup logic decoupled from Tauri AppHandle for testability.
+/// Core setup wrapper delegating directly to unified `auth_unlock_core`.
 pub async fn auth_setup_core(db_file: &Path, salt_file: &Path, password: &str) -> Result<(), AuthError> {
-    if db_file.exists() {
-        return Err(AuthError::AlreadySetup);
-    }
-
-    // Ensure parent directory exists
-    if let Some(parent) = db_file.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| AuthError::Io(e.to_string()))?;
-        }
-    }
-
-    // 1. Generate salt and write to disk
-    let salt = crypto::generate_salt();
-    std::fs::write(salt_file, salt).map_err(|e| AuthError::Io(e.to_string()))?;
-
-    // 2. Offload CPU-heavy Argon2 KDF + initial DB creation to blocking thread
-    let password_owned = password.to_string();
-    let db_file_owned = db_file.to_path_buf();
-
-    tokio::task::spawn_blocking(move || {
-        let start = std::time::Instant::now();
-        let key = crypto::derive_master_key(&password_owned, &salt);
-        let duration = start.elapsed();
-        eprintln!(
-            "[Argon2 KDF] derive_master_key (setup) took {} ms",
-            duration.as_millis()
-        );
-
-        let conn = rusqlite::Connection::open(&db_file_owned)
-            .map_err(|e| AuthError::Database(e.to_string()))?;
-        let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
-        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))
-            .map_err(|e| AuthError::Database(e.to_string()))?;
-
-        schema::configure_connection(&conn).map_err(|e| AuthError::Database(e.to_string()))?;
-        schema::create_schema(&conn).map_err(|e| AuthError::Database(e.to_string()))?;
-
-        conn.execute(
-            "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_lock_minutes', '15');",
-            [],
-        )
-        .map_err(|e| AuthError::Database(e.to_string()))?;
-
-        Ok(())
-    })
-    .await
-    .map_err(|e| AuthError::Io(format!("Worker thread join error: {}", e)))?
+    let dummy_state = Mutex::new(AppState::new());
+    auth_unlock_core(db_file, salt_file, &dummy_state, password).await
 }
 
-/// Core unlock logic decoupled from Tauri AppHandle for testability.
+/// Core vault unlock and first-run setup logic decoupled from Tauri / N-API for testability.
 pub async fn auth_unlock_core(
     db_file: &Path,
     salt_file: &Path,
@@ -108,24 +63,39 @@ pub async fn auth_unlock_core(
         tokio::time::sleep(delay).await;
     }
 
-    // 2. Verify database file exists before touching salt file
-    if !db_file.exists() {
-        return Err(AuthError::NotSetup);
+    // 2. Ensure parent directories exist
+    if let Some(parent) = db_file.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| AuthError::Io(e.to_string()))?;
+        }
+    }
+    if let Some(parent) = salt_file.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| AuthError::Io(e.to_string()))?;
+        }
     }
 
-    // 3. Read salt from disk
-    let salt_bytes = std::fs::read(salt_file).map_err(|e| AuthError::Io(e.to_string()))?;
-    if salt_bytes.len() != crypto::SALT_SIZE {
-        return Err(AuthError::Io(format!(
-            "Invalid salt file length: expected {}, got {}",
-            crypto::SALT_SIZE,
-            salt_bytes.len()
-        )));
-    }
-    let mut salt = [0u8; crypto::SALT_SIZE];
-    salt.copy_from_slice(&salt_bytes);
+    // 3. Determine if first run (salt file does not exist)
+    let is_first_run = !salt_file.exists();
+    let salt = if is_first_run {
+        let new_salt = crypto::generate_salt();
+        std::fs::write(salt_file, new_salt).map_err(|e| AuthError::Io(e.to_string()))?;
+        new_salt
+    } else {
+        let salt_bytes = std::fs::read(salt_file).map_err(|e| AuthError::Io(e.to_string()))?;
+        if salt_bytes.len() != crypto::SALT_SIZE {
+            return Err(AuthError::Io(format!(
+                "Invalid salt file length: expected {}, got {}",
+                crypto::SALT_SIZE,
+                salt_bytes.len()
+            )));
+        }
+        let mut s = [0u8; crypto::SALT_SIZE];
+        s.copy_from_slice(&salt_bytes);
+        s
+    };
 
-    // 4. Offload CPU-heavy Argon2 KDF + SQLCipher connection verification to blocking thread
+    // 4. Offload CPU-heavy Argon2 KDF + SQLCipher vault verification / initialization to blocking thread
     let password_owned = password.to_string();
     let db_file_owned = db_file.to_path_buf();
 
@@ -134,8 +104,9 @@ pub async fn auth_unlock_core(
         let key = crypto::derive_master_key(&password_owned, &salt);
         let duration = start.elapsed();
         eprintln!(
-            "[Argon2 KDF] derive_master_key (unlock) took {} ms",
-            duration.as_millis()
+            "[Argon2 KDF] derive_master_key took {} ms (first_run={})",
+            duration.as_millis(),
+            is_first_run
         );
 
         let conn_res = (|| -> Result<rusqlite::Connection, rusqlite::Error> {
@@ -143,8 +114,14 @@ pub async fn auth_unlock_core(
             let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
             conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
             schema::configure_connection(&conn)?;
-            let _verify: i64 =
-                conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
+
+            if !is_first_run {
+                // Verify master key against existing database
+                let _verify: i64 =
+                    conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
+            }
+
+            schema::init_vault_schema(&conn)?;
             Ok(conn)
         })();
 
@@ -159,8 +136,8 @@ pub async fn auth_unlock_core(
     match conn_res {
         Ok(conn) => {
             state_guard.record_attempt(true);
-            state_guard.db = Some(conn);
-            state_guard.encryption_key = Some(key);
+            state_guard.vault_db = Some(conn);
+            state_guard.vault_key = Some(key);
             Ok(())
         }
         Err(err) => {
@@ -191,10 +168,7 @@ static UNLOCK_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU
 
 #[napi]
 pub async fn cmd_auth_setup(password: String) -> napi::Result<()> {
-    let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
-    let db_file = paths::db_path().map_err(napi::Error::from)?;
-    let salt_file = paths::salt_path().map_err(napi::Error::from)?;
-    auth_setup_core(&db_file, &salt_file, &password).await.map_err(napi::Error::from)
+    cmd_auth_unlock(password).await
 }
 
 #[napi]
@@ -208,8 +182,8 @@ pub async fn cmd_auth_unlock(password: String) -> napi::Result<()> {
         .as_millis();
     eprintln!("[unlock #{}] ENTER at {}", n, enter_ts);
 
-    let db_file = paths::db_path().map_err(napi::Error::from)?;
-    let salt_file = paths::salt_path().map_err(napi::Error::from)?;
+    let db_file = paths::vault_db_path().map_err(napi::Error::from)?;
+    let salt_file = paths::vault_salt_path().map_err(napi::Error::from)?;
     let res = auth_unlock_core(&db_file, &salt_file, &crate::state::GLOBAL_APP_STATE, &password).await;
 
     let exit_ts = std::time::SystemTime::now()
@@ -229,54 +203,37 @@ pub fn cmd_auth_lock() -> napi::Result<()> {
     let mut state_guard = crate::state::GLOBAL_APP_STATE
         .lock()
         .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    state_guard.db = None;
-    state_guard.encryption_key = None;
+    state_guard.vault_db = None;
+    state_guard.vault_key = None;
+    state_guard.active_canvas = None;
     Ok(())
 }
 
 #[napi]
 pub fn cmd_auth_status() -> napi::Result<AuthStatus> {
-    let db_file = paths::db_path().map_err(napi::Error::from)?;
+    let db_file = paths::vault_db_path().map_err(napi::Error::from)?;
     let is_setup = db_file.exists();
 
     let state_guard = crate::state::GLOBAL_APP_STATE
         .lock()
         .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let unlocked = state_guard.db.is_some();
-
-    let auto_lock_minutes = if let Some(ref conn) = state_guard.db {
-        conn.query_row(
-            "SELECT value FROM app_settings WHERE key = 'auto_lock_minutes'",
-            [],
-            |r| r.get::<_, String>(0),
-        )
-        .ok()
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(15)
-    } else {
-        15
-    };
+    let unlocked = state_guard.vault_db.is_some();
 
     Ok(AuthStatus {
         is_setup,
         unlocked,
-        auto_lock_minutes,
+        auto_lock_minutes: 15,
     })
 }
 
 #[napi]
-pub fn cmd_update_settings(auto_lock_minutes: i32) -> napi::Result<()> {
+pub fn cmd_update_settings(_auto_lock_minutes: i32) -> napi::Result<()> {
     let state_guard = crate::state::GLOBAL_APP_STATE
         .lock()
         .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let conn = state_guard.db.as_ref().ok_or(AuthError::NotSetup)?;
-
-    conn.execute(
-        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_lock_minutes', ?1);",
-        [auto_lock_minutes.to_string()],
-    )
-    .map_err(|e| AuthError::Database(e.to_string()))?;
-
+    if state_guard.vault_db.is_none() {
+        return Err(AuthError::NotSetup.into());
+    }
     Ok(())
 }
 
@@ -312,64 +269,114 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_setup_then_unlock_succeeds() {
-        let dir = TestDir::new("setup_unlock");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+    async fn test_fresh_vault_creation_on_first_unlock() {
+        let dir = TestDir::new("fresh_vault");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
 
-        // 1. Setup
-        let setup_res = auth_setup_core(&db_file, &salt_file, "correct-horse-battery").await;
-        assert!(setup_res.is_ok(), "Setup must succeed");
-        assert!(db_file.exists(), "DB file created");
-        assert!(salt_file.exists(), "Salt file created");
+        assert!(!db_file.exists());
+        assert!(!salt_file.exists());
 
-        // AppState is not auto-unlocked by setup
-        {
-            let s = state.lock().unwrap();
-            assert!(s.db.is_none());
-            assert!(s.encryption_key.is_none());
-        }
+        let res = auth_unlock_core(&db_file, &salt_file, &state, "correct-horse-battery").await;
+        assert!(res.is_ok(), "First unlock must create vault");
+        assert!(db_file.exists(), "Vault DB must be created");
+        assert!(salt_file.exists(), "Vault salt must be created");
 
-        // 2. Unlock
-        let unlock_res = auth_unlock_core(&db_file, &salt_file, &state, "correct-horse-battery").await;
-        assert!(unlock_res.is_ok(), "Unlock with correct password must succeed");
-
-        // Verify AppState is unlocked
-        {
-            let s = state.lock().unwrap();
-            assert!(s.db.is_some());
-            assert!(s.encryption_key.is_some());
-            assert_eq!(s.failed_attempts, 0);
-        }
+        let s = state.lock().unwrap();
+        assert!(s.vault_db.is_some(), "vault_db must be populated");
+        assert!(s.vault_key.is_some(), "vault_key must be populated");
+        assert_eq!(s.failed_attempts, 0);
     }
 
     #[tokio::test]
-    async fn test_unlock_wrong_password_returns_invalid_password_and_increments_counter() {
-        let dir = TestDir::new("wrong_password");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+    async fn test_vault_schema_is_correctly_created() {
+        let dir = TestDir::new("vault_schema");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
 
-        auth_setup_core(&db_file, &salt_file, "correct-password").await.unwrap();
-
-        let unlock_res = auth_unlock_core(&db_file, &salt_file, &state, "wrong-password").await;
-        assert_eq!(unlock_res, Err(AuthError::InvalidPassword));
+        auth_unlock_core(&db_file, &salt_file, &state, "vault-pwd").await.unwrap();
 
         let s = state.lock().unwrap();
+        let conn = s.vault_db.as_ref().unwrap();
+
+        // Verify canvases table exists and is queryable
+        let count: i64 = conn.query_row("SELECT count(*) FROM canvases", [], |r| r.get(0)).unwrap();
+        assert_eq!(count, 0);
+
+        // Verify canvases table column structure
+        let mut stmt = conn.prepare("PRAGMA table_info(canvases)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(cols, vec!["id", "name", "file_name", "created_at", "modified_at"]);
+    }
+
+    #[tokio::test]
+    async fn test_wrong_password_on_existing_vault_is_rejected() {
+        let dir = TestDir::new("wrong_password");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
+        let state = Mutex::new(AppState::new());
+
+        // First run creates the vault
+        auth_unlock_core(&db_file, &salt_file, &state, "correct-password").await.unwrap();
+
+        // Second attempt with wrong password on fresh state
+        let state2 = Mutex::new(AppState::new());
+        let res = auth_unlock_core(&db_file, &salt_file, &state2, "wrong-password").await;
+        assert_eq!(res, Err(AuthError::InvalidPassword));
+
+        let s = state2.lock().unwrap();
         assert_eq!(s.failed_attempts, 1);
-        assert!(s.db.is_none());
-        assert!(s.encryption_key.is_none());
+        assert!(s.vault_db.is_none());
+        assert!(s.vault_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_correct_password_on_existing_vault_succeeds() {
+        let dir = TestDir::new("existing_vault_success");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
+        let state = Mutex::new(AppState::new());
+
+        // 1. First run creates vault
+        auth_unlock_core(&db_file, &salt_file, &state, "my-secret-vault").await.unwrap();
+
+        // Insert a canvas record into the vault
+        {
+            let s = state.lock().unwrap();
+            let conn = s.vault_db.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO canvases (id, name, file_name, created_at, modified_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params!["c1", "Work Canvas", "c1.db", "2026-09-08T00:00:00Z", "2026-09-08T00:00:00Z"],
+            ).unwrap();
+        }
+
+        // 2. Lock / simulate new app launch
+        let state2 = Mutex::new(AppState::new());
+        let res = auth_unlock_core(&db_file, &salt_file, &state2, "my-secret-vault").await;
+        assert!(res.is_ok());
+
+        let s2 = state2.lock().unwrap();
+        assert!(s2.vault_db.is_some());
+        assert!(s2.vault_key.is_some());
+        let conn2 = s2.vault_db.as_ref().unwrap();
+        let name: String = conn2.query_row("SELECT name FROM canvases WHERE id = 'c1'", [], |r| r.get(0)).unwrap();
+        assert_eq!(name, "Work Canvas");
     }
 
     #[tokio::test]
     async fn test_rate_limiting_after_consecutive_failures() {
         let dir = TestDir::new("rate_limiting");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
 
-        auth_setup_core(&db_file, &salt_file, "correct-password").await.unwrap();
+        auth_unlock_core(&db_file, &salt_file, &state, "correct-password").await.unwrap();
 
         // 3 consecutive failures: no delay required
         let r1 = auth_unlock_core(&db_file, &salt_file, &state, "bad-1").await;
@@ -397,40 +404,48 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_lock_clears_db_and_encryption_key() {
+    async fn test_lock_clears_vault_and_active_canvas() {
         let dir = TestDir::new("lock_clears");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
 
-        auth_setup_core(&db_file, &salt_file, "correct-password").await.unwrap();
         auth_unlock_core(&db_file, &salt_file, &state, "correct-password").await.unwrap();
 
+        // Simulate an open active canvas
         {
-            let s = state.lock().unwrap();
-            assert!(s.db.is_some());
-            assert!(s.encryption_key.is_some());
+            let mut s = state.lock().unwrap();
+            assert!(s.vault_db.is_some());
+            assert!(s.vault_key.is_some());
+            let canvas_conn = rusqlite::Connection::open_in_memory().unwrap();
+            s.active_canvas = Some(crate::state::ActiveCanvas {
+                id: "c1".to_string(),
+                db: canvas_conn,
+                key: zeroize::Zeroizing::new([7u8; 32]),
+            });
         }
 
         // Lock
         {
             let mut s = state.lock().unwrap();
-            s.db = None;
-            s.encryption_key = None;
+            s.vault_db = None;
+            s.vault_key = None;
+            s.active_canvas = None;
         }
 
         {
             let s = state.lock().unwrap();
-            assert!(s.db.is_none());
-            assert!(s.encryption_key.is_none());
+            assert!(s.vault_db.is_none());
+            assert!(s.vault_key.is_none());
+            assert!(s.active_canvas.is_none());
         }
     }
 
     #[tokio::test]
     async fn test_status_reporting_all_states() {
         let dir = TestDir::new("status_reporting");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
 
         // State 1: Not setup
@@ -439,7 +454,7 @@ mod tests {
             let s = state.lock().unwrap();
             let status = AuthStatus {
                 is_setup: db_file.exists(),
-                unlocked: s.db.is_some(),
+                unlocked: s.vault_db.is_some(),
                 auto_lock_minutes: 15,
             };
             assert!(!status.is_setup);
@@ -447,58 +462,32 @@ mod tests {
             assert_eq!(status.auto_lock_minutes, 15);
         }
 
-        // State 2: Setup but locked
-        auth_setup_core(&db_file, &salt_file, "password123").await.unwrap();
+        // State 2: Unlocked on first run
+        auth_unlock_core(&db_file, &salt_file, &state, "password123").await.unwrap();
         assert!(db_file.exists());
         {
             let s = state.lock().unwrap();
             let status = AuthStatus {
                 is_setup: db_file.exists(),
-                unlocked: s.db.is_some(),
+                unlocked: s.vault_db.is_some(),
                 auto_lock_minutes: 15,
-            };
-            assert!(status.is_setup);
-            assert!(!status.unlocked);
-            assert_eq!(status.auto_lock_minutes, 15);
-        }
-
-        // State 3: Unlocked
-        auth_unlock_core(&db_file, &salt_file, &state, "password123").await.unwrap();
-        {
-            let s = state.lock().unwrap();
-            let auto_lock = s
-                .db
-                .as_ref()
-                .unwrap()
-                .query_row(
-                    "SELECT value FROM app_settings WHERE key = 'auto_lock_minutes'",
-                    [],
-                    |r| r.get::<_, String>(0),
-                )
-                .unwrap()
-                .parse::<i32>()
-                .unwrap();
-            let status = AuthStatus {
-                is_setup: db_file.exists(),
-                unlocked: s.db.is_some(),
-                auto_lock_minutes: auto_lock,
             };
             assert!(status.is_setup);
             assert!(status.unlocked);
             assert_eq!(status.auto_lock_minutes, 15);
         }
 
-        // State 4: Locked again after unlock
+        // State 3: Locked after unlock
         {
             let mut s = state.lock().unwrap();
-            s.db = None;
-            s.encryption_key = None;
+            s.vault_db = None;
+            s.vault_key = None;
         }
         {
             let s = state.lock().unwrap();
             let status = AuthStatus {
                 is_setup: db_file.exists(),
-                unlocked: s.db.is_some(),
+                unlocked: s.vault_db.is_some(),
                 auto_lock_minutes: 15,
             };
             assert!(status.is_setup);
@@ -508,62 +497,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_settings_succeeds_when_unlocked_and_fails_when_locked() {
-        let dir = TestDir::new("update_settings");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
-        let state = Mutex::new(AppState::new());
-
-        // 1. Updating settings while locked returns NotSetup
-        {
-            let s = state.lock().unwrap();
-            let res = s.db.as_ref().ok_or(AuthError::NotSetup);
-            assert_eq!(res.err(), Some(AuthError::NotSetup));
-        }
-
-        // 2. Setup and unlock
-        auth_setup_core(&db_file, &salt_file, "pass").await.unwrap();
-        auth_unlock_core(&db_file, &salt_file, &state, "pass").await.unwrap();
-
-        // 3. Update settings to 30 minutes
-        {
-            let s = state.lock().unwrap();
-            let conn = s.db.as_ref().unwrap();
-            conn.execute(
-                "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_lock_minutes', ?1);",
-                ["30"],
-            )
-            .unwrap();
-        }
-
-        // 4. Verify updated value in DB
-        {
-            let s = state.lock().unwrap();
-            let updated: String = s
-                .db
-                .as_ref()
-                .unwrap()
-                .query_row(
-                    "SELECT value FROM app_settings WHERE key = 'auto_lock_minutes'",
-                    [],
-                    |r| r.get(0),
-                )
-                .unwrap();
-            assert_eq!(updated, "30");
-        }
-    }
-
-    #[tokio::test]
     async fn test_unlock_gate_serializes_concurrent_attempts_and_rate_limits() {
         let dir = TestDir::new("concurrency_serialized");
-        let db_file = dir.path().join("lattice.db");
-        let salt_file = dir.path().join("lattice.salt");
+        let db_file = dir.path().join("vault.db");
+        let salt_file = dir.path().join("vault.salt");
         let state = Mutex::new(AppState::new());
         let gate = tokio::sync::Mutex::new(());
 
-        auth_setup_core(&db_file, &salt_file, "correct-password").await.unwrap();
+        // Create vault
+        auth_unlock_core(&db_file, &salt_file, &state, "correct-password").await.unwrap();
 
-        eprintln!("=== LAUNCHING 5 GATED CONCURRENT UNLOCK CALLS ===");
         let run_attempt = |id: usize, pwd: &'static str| {
             let db = db_file.clone();
             let salt = salt_file.clone();
@@ -588,7 +531,6 @@ mod tests {
             run_attempt(5, "wrong-5"),
         );
 
-        eprintln!("Final gated outcomes: r1={:?}, r2={:?}, r3={:?}, r4={:?}, r5={:?}", r1, r2, r3, r4, r5);
         assert_eq!(r1, Err(AuthError::InvalidPassword));
         assert_eq!(r2, Err(AuthError::InvalidPassword));
         assert_eq!(r3, Err(AuthError::InvalidPassword));

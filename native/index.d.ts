@@ -9,6 +9,15 @@ export declare function cmdAuthUnlock(password: string): Promise<void>
 export declare function cmdAuthLock(): void
 export declare function cmdAuthStatus(): AuthStatus
 export declare function cmdUpdateSettings(autoLockMinutes: number): void
+export declare function cmdListCanvases(): Array<CanvasSummary>
+export declare function cmdCreateCanvas(name: string, password: string): Promise<CanvasSummary>
+export declare function cmdOpenCanvas(id: string, password: string): Promise<void>
+export declare function cmdCloseCanvas(): void
+export declare function cmdRenameCanvas(id: string, newName: string): void
+export declare function cmdDuplicateCanvas(id: string, originalPassword?: string | undefined | null, newPassword?: string | undefined | null): Promise<CanvasSummary>
+export declare function cmdDeleteCanvas(id: string, password: string): Promise<void>
+export declare function cmdExportCanvas(id: string, destinationPath: string): void
+export declare function cmdImportCanvas(sourcePath: string): CanvasSummary
 export declare function cmdGetGraph(): GraphData
 export declare function cmdGetNodes(nodeType: string, skip?: number | undefined | null, limit?: number | undefined | null): Array<GraphNode>
 export declare function cmdGetNode(nodeType: string, nodeId: string): GraphNode
@@ -58,4 +67,10 @@ export interface EdgeCreatePayload {
 export interface EdgeUpdatePayload {
   relation?: string
   notes?: string
+}
+export interface CanvasSummary {
+  id: string
+  name: string
+  createdAt: string
+  modifiedAt: string
 }

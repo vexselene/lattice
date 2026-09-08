@@ -99,10 +99,43 @@ pub fn create_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     conn.execute_batch(INIT_SQL)
 }
 
+pub const VAULT_INIT_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS canvases (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    file_name   TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    modified_at TEXT NOT NULL
+);
+"#;
+
+/// Initializes the vault database schema (canvases registry) on a connection.
+pub fn init_vault_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    configure_connection(conn)?;
+    conn.execute_batch(VAULT_INIT_SQL)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
+
+    #[test]
+    fn test_init_vault_schema_in_memory() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        init_vault_schema(&conn).expect("init vault schema succeeded");
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap();
+        let tables: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        assert!(tables.contains(&"canvases".to_string()));
+    }
 
     #[test]
     fn test_create_schema_in_memory() {

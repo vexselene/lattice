@@ -16,10 +16,17 @@ pub enum BackoffError {
     RateLimited { wait_remaining: Duration },
 }
 
-/// Shared application state managed by Tauri.
+pub struct ActiveCanvas {
+    pub id: String,
+    pub db: rusqlite::Connection,
+    pub key: Zeroizing<[u8; 32]>,
+}
+
+/// Shared application state managed by Tauri / Electron native core.
 pub struct AppState {
-    pub db: Option<rusqlite::Connection>,
-    pub encryption_key: Option<Zeroizing<[u8; 32]>>,
+    pub vault_db: Option<rusqlite::Connection>,
+    pub vault_key: Option<Zeroizing<[u8; 32]>>,
+    pub active_canvas: Option<ActiveCanvas>,
     pub failed_attempts: u32,
     pub last_attempt_at: Option<Instant>,
 }
@@ -27,8 +34,9 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            db: None,
-            encryption_key: None,
+            vault_db: None,
+            vault_key: None,
+            active_canvas: None,
             failed_attempts: 0,
             last_attempt_at: None,
         }

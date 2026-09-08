@@ -29,6 +29,12 @@ pub enum AuthError {
 
     #[error("Database error: {0}")]
     Database(String),
+
+    #[error("A canvas is already active")]
+    CanvasAlreadyActive,
+
+    #[error("Invalid bundle: {0}")]
+    InvalidBundle(String),
 }
 
 impl From<AuthError> for napi::Error {
