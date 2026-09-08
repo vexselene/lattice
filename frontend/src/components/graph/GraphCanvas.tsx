@@ -177,8 +177,6 @@ const GraphInner = () => {
 
 
   useEffect(() => {
-    const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-
     let visibleNodeIds = new Set<string>();
 
     let effectiveActiveChain = activeChain;
@@ -275,7 +273,7 @@ const GraphInner = () => {
           ...(n.data as any), 
           isModalOpen,
         },
-        position: savedPositions[n.data.id] || { x: 0, y: 0 },
+        position: { x: n.data.position_x ?? 0, y: n.data.position_y ?? 0 },
         hidden: isHidden,
       };
     });
@@ -353,34 +351,13 @@ const GraphInner = () => {
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
     onNodesChange(changes);
-    
-    setNodes((currentNodes) => {
-      if (isEditMode) {
-        const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-        const positions = currentNodes.reduce((acc, node) => {
-          acc[node.id] = node.position;
-          return acc;
-        }, savedPositions);
-        localStorage.setItem('node_positions', JSON.stringify(positions));
-      }
-      return currentNodes;
-    });
-  }, [onNodesChange, setNodes, isEditMode]);
+  }, [onNodesChange]);
 
   const onLayout = useCallback(() => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-    
-    if (isEditMode) {
-      const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-      const positions = layoutedNodes.reduce((acc, node) => {
-        acc[node.id] = node.position;
-        return acc;
-      }, savedPositions);
-      localStorage.setItem('node_positions', JSON.stringify(positions));
-    }
-  }, [nodes, edges, getLayoutedElements, setNodes, setEdges, isEditMode]);
+  }, [nodes, edges, getLayoutedElements, setNodes, setEdges]);
 
   
   const onNodeDrag = useCallback((_: any, node: FlowNode) => {
@@ -652,10 +629,6 @@ const GraphInner = () => {
 
     const position = screenToFlowPosition({ x: connectMenu.x, y: connectMenu.y });
     const tempId = `temp-${Date.now()}`;
-    
-    const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-    savedPositions[tempId] = position;
-    localStorage.setItem('node_positions', JSON.stringify(savedPositions));
 
     // If the drag originated from a 'target' handle (left handle), the existing node is the target
     // and the newly created node is the source. Otherwise existing = source, new = target.
@@ -677,6 +650,8 @@ const GraphInner = () => {
       type,
       data: { 
         id: tempId, 
+        position_x: position.x,
+        position_y: position.y,
         isEditing: true, 
         isExpanded: true,
         pendingConnection,
@@ -700,14 +675,16 @@ const GraphInner = () => {
 
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const tempId = `temp-${Date.now()}`;
-    
-    const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-    savedPositions[tempId] = position;
-    localStorage.setItem('node_positions', JSON.stringify(savedPositions));
 
     const newNode: any = {
       type,
-      data: { id: tempId, isEditing: true, isExpanded: true },
+      data: { 
+        id: tempId, 
+        position_x: position.x,
+        position_y: position.y,
+        isEditing: true, 
+        isExpanded: true 
+      },
     };
     
     useGraphStore.getState().setActiveChain(null);

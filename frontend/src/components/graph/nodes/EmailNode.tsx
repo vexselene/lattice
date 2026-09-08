@@ -103,14 +103,10 @@ export const EmailNode: React.FC<EmailNodeProps> = (props) => {
         const res = await createNode('email', {
           address: trimmedAddress,
           provider: editData.provider?.trim() || undefined,
-          password_raw: editData.password || undefined
+          password_raw: editData.password || undefined,
+          position_x: (data as any).position_x ?? 0,
+          position_y: (data as any).position_y ?? 0,
         });
-        const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-        if (savedPositions[data.id]) {
-          savedPositions[res.id] = savedPositions[data.id];
-          delete savedPositions[data.id];
-          localStorage.setItem('node_positions', JSON.stringify(savedPositions));
-        }
         removeTempNode(data.id);
         
         if ((data as any).pendingConnection) {

@@ -9,6 +9,8 @@ describe('exportSelection', () => {
       type: 'email',
       data: {
         id: 'node-1',
+        position_x: 0,
+        position_y: 0,
         address: 'alice@example.com',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
@@ -18,6 +20,8 @@ describe('exportSelection', () => {
       type: 'account',
       data: {
         id: 'node-2',
+        position_x: 0,
+        position_y: 0,
         username: 'alice_acct',
         service_id: 'node-3',
         created_at: '2026-01-01T00:00:00Z',
@@ -28,6 +32,8 @@ describe('exportSelection', () => {
       type: 'service',
       data: {
         id: 'node-3',
+        position_x: 0,
+        position_y: 0,
         name: 'GitHub',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',

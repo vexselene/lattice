@@ -190,8 +190,10 @@ export async function resolveOrCreateService({
 
   // Otherwise create new service
   const { createNode } = await import('../../api/nodes');
-  const savedPositions = JSON.parse(localStorage.getItem('node_positions') || '{}');
-  const currentPos = (nodeId && savedPositions[nodeId]) || fallbackPosition || { x: 100, y: 100 };
+  const { useGraphStore } = await import('../../stores/graphStore');
+  const graphNodes = useGraphStore.getState().nodes;
+  const existingNode = nodeId ? graphNodes.find(n => n.data.id === nodeId) : null;
+  const currentPos = (existingNode?.data ? { x: (existingNode.data as any).position_x ?? 0, y: (existingNode.data as any).position_y ?? 0 } : null) || fallbackPosition || { x: 100, y: 100 };
   const serviceX = currentPos.x - 220;
   const serviceY = currentPos.y;
 
@@ -206,12 +208,8 @@ export async function resolveOrCreateService({
     throw new Error('Failed to create service: no ID returned');
   }
 
-  savedPositions[newService.id] = { x: serviceX, y: serviceY };
-  localStorage.setItem('node_positions', JSON.stringify(savedPositions));
-
   // Refresh services in graph store so all components see the newly created service immediately
   try {
-    const { useGraphStore } = await import('../../stores/graphStore');
     await useGraphStore.getState().fetchServices();
   } catch (err) {
     console.error('Failed to fetch services after creation:', err);

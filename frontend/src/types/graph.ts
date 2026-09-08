@@ -3,6 +3,8 @@ export type EdgeRelation = 'registered_with' | 'recovery_for' | 'uses_username' 
 
 export interface BaseNode {
   id: string;
+  position_x: number;
+  position_y: number;
   notes?: string | null;
   tags?: string[];
   created_at: string;
