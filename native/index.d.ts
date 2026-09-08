@@ -14,7 +14,7 @@ export declare function cmdCreateCanvas(name: string, password: string): Promise
 export declare function cmdOpenCanvas(id: string, password: string): Promise<void>
 export declare function cmdCloseCanvas(): void
 export declare function cmdRenameCanvas(id: string, newName: string): void
-export declare function cmdDuplicateCanvas(id: string, originalPassword?: string | undefined | null, newPassword?: string | undefined | null): Promise<CanvasSummary>
+export declare function cmdDuplicateCanvas(id: string, originalPassword: string, newPassword?: string | undefined | null): Promise<CanvasSummary>
 export declare function cmdDeleteCanvas(id: string, password: string): Promise<void>
 export declare function cmdExportCanvas(id: string, destinationPath: string): void
 export declare function cmdImportCanvas(sourcePath: string): CanvasSummary

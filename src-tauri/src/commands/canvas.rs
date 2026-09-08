@@ -394,23 +394,27 @@ pub fn rename_canvas_core(
 /// - Copies the canvas db + salt files as-is under a new UUID.
 ///
 /// If `new_password` is Some(non-empty):
-/// - Opens the copied DB with the original key (derived from `original_password` or `state.active_canvas.key`),
+/// - Opens the copied DB with the key derived from `original_password`,
 ///   rekeys it to a new Argon2id key with a fresh salt via `PRAGMA rekey`, and saves the new salt.
 pub async fn duplicate_canvas_core(
     state: &Mutex<AppState>,
     id: String,
-    original_password: Option<String>,
+    original_password: String,
     new_password: Option<String>,
 ) -> Result<CanvasSummary, AuthError> {
+    if original_password.trim().is_empty() {
+        return Err(AuthError::Validation("Original password cannot be empty".into()));
+    }
+
     let new_id = uuid::Uuid::new_v4().to_string();
 
-    let (orig_name, active_key) = {
+    let orig_name: String = {
         let state_guard = state
             .lock()
             .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
         let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
 
-        let name: String = vault_conn
+        vault_conn
             .query_row(
                 "SELECT name FROM canvases WHERE id = ?1",
                 rusqlite::params![&id],
@@ -421,15 +425,7 @@ pub async fn duplicate_canvas_core(
                     AuthError::NotFound(format!("Canvas {} not found", id))
                 }
                 e => AuthError::Database(e.to_string()),
-            })?;
-
-        let key = state_guard
-            .active_canvas
-            .as_ref()
-            .filter(|c| c.id == id)
-            .map(|c| c.key.clone());
-
-        (name, key)
+            })?
     };
 
     let orig_db = paths::canvas_db_path(&id)?;
@@ -449,24 +445,14 @@ pub async fn duplicate_canvas_core(
             }
         }
         Some(new_pwd) => {
-            // Determine old key to open the copy before rekeying
-            let old_key = if let Some(ref orig_pwd) = original_password.filter(|p| !p.trim().is_empty()) {
-                let orig_salt_bytes =
-                    std::fs::read(&orig_salt).map_err(|e| AuthError::Io(e.to_string()))?;
-                if orig_salt_bytes.len() != crypto::SALT_SIZE {
-                    return Err(AuthError::Io("Invalid original salt size".into()));
-                }
-                let mut s = [0u8; crypto::SALT_SIZE];
-                s.copy_from_slice(&orig_salt_bytes);
-                crypto::derive_master_key(orig_pwd, &s)
-            } else if let Some(key) = active_key {
-                key
-            } else {
-                return Err(AuthError::Validation(
-                    "Original password is required to duplicate canvas with a new password when canvas is not active"
-                        .into(),
-                ));
-            };
+            let orig_salt_bytes =
+                std::fs::read(&orig_salt).map_err(|e| AuthError::Io(e.to_string()))?;
+            if orig_salt_bytes.len() != crypto::SALT_SIZE {
+                return Err(AuthError::Io("Invalid original salt size".into()));
+            }
+            let mut s = [0u8; crypto::SALT_SIZE];
+            s.copy_from_slice(&orig_salt_bytes);
+            let old_key = crypto::derive_master_key(&original_password, &s);
 
             // Copy DB file to new destination
             std::fs::copy(&orig_db, &new_db).map_err(|e| AuthError::Io(e.to_string()))?;
@@ -814,7 +800,7 @@ pub fn cmd_rename_canvas(id: String, new_name: String) -> napi::Result<()> {
 #[napi]
 pub async fn cmd_duplicate_canvas(
     id: String,
-    original_password: Option<String>,
+    original_password: String,
     new_password: Option<String>,
 ) -> napi::Result<CanvasSummary> {
     let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
@@ -1057,7 +1043,11 @@ mod tests {
 
         let orig = create_canvas_core(&state, "Project".into(), "orig-pwd".into()).await.unwrap();
 
-        let dup = duplicate_canvas_core(&state, orig.id.clone(), None, None)
+        // Empty original password must fail validation
+        let empty_res = duplicate_canvas_core(&state, orig.id.clone(), "   ".into(), None).await;
+        assert!(matches!(empty_res, Err(AuthError::Validation(_))));
+
+        let dup = duplicate_canvas_core(&state, orig.id.clone(), "orig-pwd".into(), None)
             .await
             .expect("duplicate succeeded");
 
@@ -1086,11 +1076,21 @@ mod tests {
 
         let orig = create_canvas_core(&state, "Finance".into(), "old-pwd".into()).await.unwrap();
 
-        // Duplicate specifying original password and new password
+        // Rekeying with wrong original password must fail
+        let wrong_res = duplicate_canvas_core(
+            &state,
+            orig.id.clone(),
+            "wrong-old-pwd".into(),
+            Some("new-secure-pwd".into()),
+        )
+        .await;
+        assert!(matches!(wrong_res, Err(AuthError::InvalidPassword)));
+
+        // Duplicate specifying correct original password and new password
         let dup = duplicate_canvas_core(
             &state,
             orig.id.clone(),
-            Some("old-pwd".into()),
+            "old-pwd".into(),
             Some("new-secure-pwd".into()),
         )
         .await
