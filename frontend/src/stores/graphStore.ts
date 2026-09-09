@@ -39,6 +39,8 @@ interface GraphState {
   setOpenMenuEdgeId: (id: string | null) => void;
   batchAddTag: (nodeIds: string[], tag: string) => void;
   removeTag: (nodeId: string, tag: string) => void;
+  updateNodePosition: (nodeId: string, x: number, y: number) => void;
+  updateNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
@@ -87,6 +89,25 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   addTempNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
   removeTempNode: (nodeId) => set((state) => ({ nodes: state.nodes.filter(n => n.data.id !== nodeId) })),
   bumpCollapseAll: () => set((state) => ({ collapseAllSignal: state.collapseAllSignal + 1, openMenuEdgeId: null, expandedNodeId: null })),
+  
+  updateNodePosition: (nodeId, x, y) => set((state) => ({
+    nodes: state.nodes.map((n) =>
+      n.data.id === nodeId
+        ? { ...n, data: { ...n.data, position_x: x, position_y: y } }
+        : n
+    ),
+  })),
+
+  updateNodePositions: (updates) => {
+    if (!updates || updates.length === 0) return;
+    const map = new Map(updates.map((u) => [u.id, u]));
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        const up = map.get(n.data.id);
+        return up ? { ...n, data: { ...n.data, position_x: up.x, position_y: up.y } } : n;
+      }),
+    }));
+  },
   
   batchAddTag: async (nodeIds, tag) => {
     const normalized = tag.trim().toLowerCase();

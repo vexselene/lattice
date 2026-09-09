@@ -76,7 +76,8 @@ const GraphInner = () => {
     selectedEdgeIds,
     setSelectedEdgeIds,
     activeMultiMode,
-    setActiveMultiMode
+    setActiveMultiMode,
+    updateNodePositions
   } = useGraphStore();
   
   const { theme, searchQuery, typeFilters, tagFilters, serviceFilters, isEditMode } = useUIStore();
@@ -357,7 +358,12 @@ const GraphInner = () => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-  }, [nodes, edges, getLayoutedElements, setNodes, setEdges]);
+    updateNodePositions(layoutedNodes.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })));
+    layoutedNodes.forEach(n => {
+      updateNodePosition(n.type || 'email', n.id, n.position.x, n.position.y)
+        .catch(err => console.error('[GraphCanvas] Failed to update node position on layout:', err));
+    });
+  }, [nodes, edges, getLayoutedElements, setNodes, setEdges, updateNodePositions]);
 
   
   const onNodeDrag = useCallback((_: any, node: FlowNode) => {
@@ -392,7 +398,18 @@ const GraphInner = () => {
     }
   }, [nodes, proximityTarget, draggingNode, storeEdges]);
 
-  const onNodeDragStop = useCallback((_: any, node: FlowNode) => {
+  const onNodeDragStop = useCallback((_: any, node: FlowNode, draggedNodes?: FlowNode[]) => {
+    const nodesToUpdate = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+    
+    // Immediately update in-memory store so re-renders won't snap back to stale positions
+    updateNodePositions(nodesToUpdate.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })));
+
+    // Persist position(s) to SQLite database
+    nodesToUpdate.forEach(n => {
+      updateNodePosition(n.type || 'email', n.id, n.position.x, n.position.y)
+        .catch(err => console.error('[GraphCanvas] Failed to update node position:', err));
+    });
+
     if (proximityTarget && isEditMode) {
       const targetNode = storeNodes.find(n => n.data.id === proximityTarget);
       if (targetNode) {
@@ -414,14 +431,10 @@ const GraphInner = () => {
           relation: 'registered_with'
         });
       }
-    } else {
-      // Normal node drag (no proximity connection) - save position to database
-      updateNodePosition(node.type || 'email', node.id, node.position.x, node.position.y)
-        .catch(err => console.error('[GraphCanvas] Failed to update node position:', err));
     }
     setProximityTarget(null);
     setDraggingNode(null);
-  }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode]);
+  }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode, updateNodePositions]);
 
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
