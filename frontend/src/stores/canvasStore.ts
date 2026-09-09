@@ -16,6 +16,7 @@ import type { CanvasSummary } from '../api/canvas';
 export interface CanvasState {
   canvases: CanvasSummary[];
   activeCanvasId: string | null;
+  closingCanvasId: string | null;
   isLoadingCanvases: boolean;
   error: string | null;
 
@@ -23,6 +24,7 @@ export interface CanvasState {
   createCanvas: (name: string, password: string) => Promise<void>;
   openCanvas: (id: string, password: string) => Promise<void>;
   closeCanvas: () => Promise<void>;
+  setClosingCanvasId: (id: string | null) => void;
   renameCanvas: (id: string, newName: string) => Promise<void>;
   duplicateCanvas: (id: string, originalPassword: string, newPassword?: string) => Promise<void>;
   deleteCanvas: (id: string, password: string) => Promise<void>;
@@ -35,8 +37,11 @@ export interface CanvasState {
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   canvases: [],
   activeCanvasId: null,
+  closingCanvasId: null,
   isLoadingCanvases: false,
   error: null,
+
+  setClosingCanvasId: (id) => set({ closingCanvasId: id }),
 
   fetchCanvases: async () => {
     set({ isLoadingCanvases: true, error: null });
@@ -63,17 +68,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ error: null });
     try {
       await apiOpenCanvas(id, password);
-      set({ activeCanvasId: id, error: null });
+      set({ activeCanvasId: id, closingCanvasId: null, error: null });
     } catch (err) {
       set({ error: formatErrorMessage(err) });
     }
   },
 
   closeCanvas: async () => {
+    const currentId = get().activeCanvasId;
     set({ error: null });
     try {
       await apiCloseCanvas();
-      set({ activeCanvasId: null, error: null });
+      set({ activeCanvasId: null, closingCanvasId: currentId, error: null });
     } catch (err) {
       set({ error: formatErrorMessage(err) });
       throw err;
@@ -145,6 +151,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({
       canvases: [],
       activeCanvasId: null,
+      closingCanvasId: null,
       isLoadingCanvases: false,
       error: null,
     });

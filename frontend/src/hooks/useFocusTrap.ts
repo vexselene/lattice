@@ -11,7 +11,8 @@ const FOCUSABLE_SELECTOR =
 export function useFocusTrap(
   containerRef: React.RefObject<HTMLElement | null>,
   isActive: boolean = true,
-  onClose?: () => void
+  onClose?: () => void,
+  initialFocusRef?: React.RefObject<HTMLElement | null>
 ) {
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
@@ -35,15 +36,34 @@ export function useFocusTrap(
       );
     };
 
-    // Ensure focus is inside the container
-    const initTimer = setTimeout(() => {
-      if (container && !container.contains(document.activeElement)) {
-        const focusables = getFocusableElements();
-        if (focusables.length > 0) {
-          focusables[0].focus();
-        }
+    const focusInitial = () => {
+      if (!container || container.contains(document.activeElement)) return;
+
+      // Priority 1: explicitly designated initialFocusRef
+      if (initialFocusRef?.current && container.contains(initialFocusRef.current)) {
+        initialFocusRef.current.focus();
+        return;
       }
-    }, 10);
+
+      // Priority 2: element with [autofocus] attribute
+      const autoFocusEl = container.querySelector<HTMLElement>('[autofocus]:not([disabled])');
+      if (
+        autoFocusEl &&
+        (autoFocusEl.offsetWidth > 0 || autoFocusEl.offsetHeight > 0 || autoFocusEl.getClientRects().length > 0)
+      ) {
+        autoFocusEl.focus();
+        return;
+      }
+
+      // Priority 3: fallback to first focusable element
+      const focusables = getFocusableElements();
+      if (focusables.length > 0) {
+        focusables[0].focus();
+      }
+    };
+
+    // Ensure focus is inside the container
+    const initTimer = setTimeout(focusInitial, 10);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -89,6 +109,19 @@ export function useFocusTrap(
 
     const handleFocusIn = (e: FocusEvent) => {
       if (container && !container.contains(e.target as Node)) {
+        if (initialFocusRef?.current && container.contains(initialFocusRef.current)) {
+          e.preventDefault();
+          initialFocusRef.current.focus();
+          return;
+        }
+
+        const autoFocusEl = container.querySelector<HTMLElement>('[autofocus]:not([disabled])');
+        if (autoFocusEl) {
+          e.preventDefault();
+          autoFocusEl.focus();
+          return;
+        }
+
         const focusables = getFocusableElements();
         if (focusables.length > 0) {
           e.preventDefault();
@@ -112,7 +145,7 @@ export function useFocusTrap(
         }, 10);
       }
     };
-  }, [isActive, containerRef, onClose]);
+  }, [isActive, containerRef, onClose, initialFocusRef]);
 }
 
 export default useFocusTrap;

@@ -11,6 +11,7 @@ import EdgeForm from './components/forms/EdgeForm';
 import ConfirmDialog from './components/shared/ConfirmDialog';
 import { Edge, GraphNode } from './types/graph';
 import { Plus, Mail, User, Smartphone } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { useCanvasStore } from './stores/canvasStore';
 import CanvasGrid from './components/grid/CanvasGrid';
@@ -80,22 +81,22 @@ function App() {
     );
   }
 
-  // State 2: Vault unlocked & no active canvas -> CanvasGrid
-  if (activeCanvasId === null) {
-    return (
-      <>
-        <AutoLockTimer />
-        <CanvasGrid />
-      </>
-    );
-  }
-
-  // State 3: Vault unlocked & active canvas opened -> Existing GraphCanvas view
-
   return (
-    <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="relative w-full h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0B0F19]">
       <AutoLockTimer />
-      <TopBar />
+      <CanvasGrid />
+
+      <AnimatePresence>
+        {activeCanvasId !== null && (
+          <motion.div
+            key="graph-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed inset-0 z-50 flex flex-col bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors"
+          >
+            <TopBar />
       
       <div className="flex flex-1 overflow-hidden relative">
         <GraphCanvas />
@@ -154,6 +155,9 @@ function App() {
         onConfirm={() => confirmData?.action()} 
         onCancel={() => setConfirmOpen(false)} 
       />
+    </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

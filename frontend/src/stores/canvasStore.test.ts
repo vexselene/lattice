@@ -21,6 +21,7 @@ describe('canvasStore', () => {
     useCanvasStore.setState({
       canvases: [],
       activeCanvasId: null,
+      closingCanvasId: null,
       isLoadingCanvases: false,
       error: null,
     });
@@ -66,6 +67,7 @@ describe('canvasStore', () => {
     await useCanvasStore.getState().closeCanvas();
 
     expect(useCanvasStore.getState().activeCanvasId).toBeNull();
+    expect(useCanvasStore.getState().closingCanvasId).toBe('c1');
     expect(useCanvasStore.getState().error).toBeNull();
     expect(canvasApi.closeCanvas).toHaveBeenCalledTimes(1);
   });
@@ -73,6 +75,7 @@ describe('canvasStore', () => {
   it('resetCanvasState clears activeCanvasId, canvases, and error', () => {
     useCanvasStore.setState({
       activeCanvasId: 'c1',
+      closingCanvasId: 'c1',
       canvases: [{ id: 'c1', name: 'Test Canvas', createdAt: '2026-01-01', modifiedAt: '2026-01-02' }],
       isLoadingCanvases: true,
       error: 'Some error',
@@ -81,6 +84,7 @@ describe('canvasStore', () => {
     useCanvasStore.getState().resetCanvasState();
 
     expect(useCanvasStore.getState().activeCanvasId).toBeNull();
+    expect(useCanvasStore.getState().closingCanvasId).toBeNull();
     expect(useCanvasStore.getState().canvases).toEqual([]);
     expect(useCanvasStore.getState().error).toBeNull();
     expect(useCanvasStore.getState().isLoadingCanvases).toBe(false);

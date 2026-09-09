@@ -24,7 +24,7 @@ export const DeleteCanvasModal: React.FC<DeleteCanvasModalProps> = ({
 
   const { deleteCanvas } = useCanvasStore();
 
-  useFocusTrap(modalRef, isOpen, onClose);
+  useFocusTrap(modalRef, isOpen, onClose, passwordInputRef);
 
   useEffect(() => {
     if (isOpen) {

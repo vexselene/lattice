@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Lock, ArrowUp, MoreVertical, Pencil, Copy, Download, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Lock, ArrowUp, ArrowLeft, MoreVertical, Pencil, Copy, Download, Trash2 } from 'lucide-react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasSummary } from '../../api/canvas';
 import GridTopBar from './GridTopBar';
@@ -10,13 +11,42 @@ import DuplicateCanvasModal from './DuplicateCanvasModal';
 import DeleteCanvasModal from './DeleteCanvasModal';
 
 export const CanvasGrid: React.FC = () => {
-  const { canvases, isLoadingCanvases, exportCanvas } = useCanvasStore();
+  const {
+    canvases,
+    isLoadingCanvases,
+    exportCanvas,
+    activeCanvasId,
+    closingCanvasId,
+    setClosingCanvasId,
+  } = useCanvasStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedCanvas, setSelectedCanvas] = useState<CanvasSummary | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Synchronize selectedCanvas when activeCanvasId is set (e.g. direct load)
+  useEffect(() => {
+    if (activeCanvasId) {
+      const found = canvases.find((c) => c.id === activeCanvasId);
+      if (found && (!selectedCanvas || selectedCanvas.id !== activeCanvasId)) {
+        setSelectedCanvas(found);
+      }
+    }
+  }, [activeCanvasId, canvases, selectedCanvas]);
+
+  // When canvas is locked via TopBar, closingCanvasId is set in the store.
+  // We trigger setSelectedCanvas(null) to initiate the Framer Motion layoutId shrink-back.
+  useEffect(() => {
+    if (closingCanvasId) {
+      setSelectedCanvas(null);
+      const timer = setTimeout(() => {
+        setClosingCanvasId(null);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [closingCanvasId, setClosingCanvasId]);
 
   // Per-card menu and modal states
   const [activeMenuCanvasId, setActiveMenuCanvasId] = useState<string | null>(null);
@@ -26,6 +56,14 @@ export const CanvasGrid: React.FC = () => {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const expandedContainerRef = useRef<HTMLDivElement>(null);
+  const [isSubmittingUnlock, setIsSubmittingUnlock] = useState(false);
+
+  const handleCloseUnlock = () => {
+    if (isSubmittingUnlock || activeCanvasId !== null || closingCanvasId) return;
+    useCanvasStore.getState().setError(null);
+    setSelectedCanvas(null);
+  };
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -84,7 +122,12 @@ export const CanvasGrid: React.FC = () => {
   }, [canvases, searchQuery]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">
+    <div
+      aria-hidden={activeCanvasId !== null}
+      className={`flex flex-col h-full w-full bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors ${
+        activeCanvasId !== null ? 'pointer-events-none' : ''
+      }`}
+    >
       {/* Top Bar */}
       <GridTopBar
         searchQuery={searchQuery}
@@ -127,10 +170,14 @@ export const CanvasGrid: React.FC = () => {
 
               {/* Remaining Tiles: Square cards for each canvas */}
               {filteredCanvases.map((canvas) => (
-                <div
+                <motion.div
                   key={canvas.id}
-                  onClick={() => setSelectedCanvas(canvas)}
-                  className="aspect-square relative flex flex-col items-center justify-center p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                  layoutId={`canvas-card-${canvas.id}`}
+                  onClick={() => {
+                    if (closingCanvasId || activeCanvasId !== null) return;
+                    setSelectedCanvas(canvas);
+                  }}
+                  className="aspect-square relative flex flex-col items-center justify-center p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm hover:shadow-md transition-colors cursor-pointer group"
                 >
                   {/* Three-dot menu button in corner */}
                   <div className="absolute top-3 right-3 z-10">
@@ -219,7 +266,7 @@ export const CanvasGrid: React.FC = () => {
                       {canvas.name}
                     </span>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -250,11 +297,85 @@ export const CanvasGrid: React.FC = () => {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
       />
-      <CanvasUnlockModal
-        canvas={selectedCanvas}
-        isOpen={selectedCanvas !== null}
-        onClose={() => setSelectedCanvas(null)}
-      />
+      {/* Expanded Canvas Card Overlay (Shared Layout) */}
+      <AnimatePresence>
+        {selectedCanvas && (
+          <motion.div
+            key="canvas-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={activeCanvasId === null && !closingCanvasId ? handleCloseUnlock : undefined}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+          />
+        )}
+        {selectedCanvas && (
+          <motion.div
+            ref={expandedContainerRef}
+            key={`expanded-${selectedCanvas.id}`}
+            layoutId={`canvas-card-${selectedCanvas.id}`}
+            className="fixed inset-0 z-40 bg-white dark:bg-slate-900 overflow-hidden flex flex-col items-center justify-center"
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
+            {/* Top-left back arrow button */}
+            {activeCanvasId === null && !closingCanvasId && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                transition={{ delay: 0.15, duration: 0.2 }}
+                onClick={handleCloseUnlock}
+                disabled={isSubmittingUnlock}
+                className="absolute top-5 left-5 sm:top-6 sm:left-8 z-30 p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Back to grid"
+                aria-label="Back to grid"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </motion.button>
+            )}
+
+            {/* Content: Password form when unlocking, or Lock icon & title when active / closing */}
+            {activeCanvasId === null && !closingCanvasId ? (
+              <div className="flex-1 flex items-center justify-center p-6 w-full">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                  transition={{ delay: 0.2, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full max-w-sm"
+                >
+                  <CanvasUnlockModal
+                    canvas={selectedCanvas}
+                    isOpen={true}
+                    onClose={handleCloseUnlock}
+                    containerRef={expandedContainerRef}
+                    onSubmittingChange={setIsSubmittingUnlock}
+                  />
+                </motion.div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center relative w-full h-full">
+                {/* Center Padlock Icon */}
+                <div className="p-3.5 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50">
+                  <Lock className="w-7 h-7 text-slate-400 dark:text-slate-500" />
+                </div>
+
+                {/* Bottom-right Canvas Name */}
+                <div className="absolute bottom-4 right-4 text-right max-w-[85%]">
+                  <span
+                    className="block text-sm font-medium text-slate-800 dark:text-slate-200 truncate"
+                    title={selectedCanvas.name}
+                  >
+                    {selectedCanvas.name}
+                  </span>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <RenameCanvasModal
         canvas={renameTarget}
         isOpen={renameTarget !== null}

@@ -24,7 +24,7 @@ export const RenameCanvasModal: React.FC<RenameCanvasModalProps> = ({
 
   const { renameCanvas } = useCanvasStore();
 
-  useFocusTrap(modalRef, isOpen, onClose);
+  useFocusTrap(modalRef, isOpen, onClose, inputRef);
 
   useEffect(() => {
     if (isOpen && canvas) {

@@ -23,7 +23,7 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
 
   const { createCanvas } = useCanvasStore();
 
-  useFocusTrap(modalRef, isOpen, onClose);
+  useFocusTrap(modalRef, isOpen, onClose, nameInputRef);
 
   useEffect(() => {
     if (isOpen) {

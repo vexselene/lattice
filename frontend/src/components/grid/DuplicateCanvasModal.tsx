@@ -25,7 +25,7 @@ export const DuplicateCanvasModal: React.FC<DuplicateCanvasModalProps> = ({
 
   const { duplicateCanvas } = useCanvasStore();
 
-  useFocusTrap(modalRef, isOpen, onClose);
+  useFocusTrap(modalRef, isOpen, onClose, passwordInputRef);
 
   useEffect(() => {
     if (isOpen) {
