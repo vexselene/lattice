@@ -15,6 +15,7 @@ import type { CanvasSummary } from '../api/canvas';
 
 export interface CanvasState {
   canvases: CanvasSummary[];
+  unlockingCanvas: CanvasSummary | null;
   activeCanvasId: string | null;
   closingCanvasId: string | null;
   isLoadingCanvases: boolean;
@@ -24,6 +25,7 @@ export interface CanvasState {
   createCanvas: (name: string, password: string) => Promise<void>;
   openCanvas: (id: string, password: string) => Promise<void>;
   closeCanvas: () => Promise<void>;
+  setUnlockingCanvas: (canvas: CanvasSummary | null) => void;
   setClosingCanvasId: (id: string | null) => void;
   renameCanvas: (id: string, newName: string) => Promise<void>;
   duplicateCanvas: (id: string, originalPassword: string, newPassword?: string) => Promise<void>;
@@ -36,11 +38,13 @@ export interface CanvasState {
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   canvases: [],
+  unlockingCanvas: null,
   activeCanvasId: null,
   closingCanvasId: null,
   isLoadingCanvases: false,
   error: null,
 
+  setUnlockingCanvas: (canvas) => set({ unlockingCanvas: canvas }),
   setClosingCanvasId: (id) => set({ closingCanvasId: id }),
 
   fetchCanvases: async () => {
@@ -80,6 +84,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     try {
       await apiCloseCanvas();
       set({ activeCanvasId: null, closingCanvasId: currentId, error: null });
+      setTimeout(() => {
+        if (get().closingCanvasId === currentId) {
+          set({ closingCanvasId: null });
+        }
+      }, 400);
     } catch (err) {
       set({ error: formatErrorMessage(err) });
       throw err;
@@ -150,6 +159,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   resetCanvasState: () => {
     set({
       canvases: [],
+      unlockingCanvas: null,
       activeCanvasId: null,
       closingCanvasId: null,
       isLoadingCanvases: false,

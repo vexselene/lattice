@@ -8,6 +8,7 @@ interface CanvasUnlockModalProps {
   canvas: CanvasSummary | null;
   isOpen?: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   containerRef?: React.RefObject<HTMLElement | null>;
   onSubmittingChange?: (submitting: boolean) => void;
 }
@@ -16,6 +17,7 @@ export const CanvasUnlockModal: React.FC<CanvasUnlockModalProps> = ({
   canvas,
   isOpen = true,
   onClose,
+  onSuccess,
   containerRef,
   onSubmittingChange,
 }) => {
@@ -41,6 +43,9 @@ export const CanvasUnlockModal: React.FC<CanvasUnlockModalProps> = ({
       setError(null);
       setIsSubmitting(false);
       onSubmittingChange?.(false);
+      requestAnimationFrame(() => {
+        passwordInputRef.current?.focus();
+      });
     }
   }, [isOpen, canvas, setError, onSubmittingChange]);
 
@@ -54,6 +59,9 @@ export const CanvasUnlockModal: React.FC<CanvasUnlockModalProps> = ({
     onSubmittingChange?.(true);
     try {
       await openCanvas(canvas.id, password);
+      if (!useCanvasStore.getState().error) {
+        onSuccess?.();
+      }
     } finally {
       setIsSubmitting(false);
       onSubmittingChange?.(false);

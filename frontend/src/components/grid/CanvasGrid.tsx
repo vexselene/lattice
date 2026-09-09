@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Lock, ArrowUp, ArrowLeft, MoreVertical, Pencil, Copy, Download, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Lock, ArrowUp, Menu, Pencil, Copy, Download, Trash2 } from 'lucide-react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasSummary } from '../../api/canvas';
+import { getCardVariant, formatCanvasDate } from '../../lib/cardVariants';
 import GridTopBar from './GridTopBar';
-import CanvasUnlockModal from './CanvasUnlockModal';
 import CreateCanvasModal from './CreateCanvasModal';
 import RenameCanvasModal from './RenameCanvasModal';
 import DuplicateCanvasModal from './DuplicateCanvasModal';
@@ -15,38 +15,16 @@ export const CanvasGrid: React.FC = () => {
     canvases,
     isLoadingCanvases,
     exportCanvas,
+    unlockingCanvas,
+    setUnlockingCanvas,
     activeCanvasId,
     closingCanvasId,
-    setClosingCanvasId,
   } = useCanvasStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedCanvas, setSelectedCanvas] = useState<CanvasSummary | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-
-  // Synchronize selectedCanvas when activeCanvasId is set (e.g. direct load)
-  useEffect(() => {
-    if (activeCanvasId) {
-      const found = canvases.find((c) => c.id === activeCanvasId);
-      if (found && (!selectedCanvas || selectedCanvas.id !== activeCanvasId)) {
-        setSelectedCanvas(found);
-      }
-    }
-  }, [activeCanvasId, canvases, selectedCanvas]);
-
-  // When canvas is locked via TopBar, closingCanvasId is set in the store.
-  // We trigger setSelectedCanvas(null) to initiate the Framer Motion layoutId shrink-back.
-  useEffect(() => {
-    if (closingCanvasId) {
-      setSelectedCanvas(null);
-      const timer = setTimeout(() => {
-        setClosingCanvasId(null);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [closingCanvasId, setClosingCanvasId]);
 
   // Per-card menu and modal states
   const [activeMenuCanvasId, setActiveMenuCanvasId] = useState<string | null>(null);
@@ -56,14 +34,6 @@ export const CanvasGrid: React.FC = () => {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const expandedContainerRef = useRef<HTMLDivElement>(null);
-  const [isSubmittingUnlock, setIsSubmittingUnlock] = useState(false);
-
-  const handleCloseUnlock = () => {
-    if (isSubmittingUnlock || activeCanvasId !== null || closingCanvasId) return;
-    useCanvasStore.getState().setError(null);
-    setSelectedCanvas(null);
-  };
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -154,120 +124,168 @@ export const CanvasGrid: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {/* Tile 1: Create New Canvas (unmodified) */}
+              {/* Tile 1: Create New Canvas (re-styled) */}
               <button
                 onClick={() => setCreateModalOpen(true)}
-                className="aspect-square flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/60 dark:hover:bg-slate-800/50 hover:border-slate-400 dark:hover:border-slate-500 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer group shadow-sm hover:shadow"
+                className="aspect-square flex flex-col items-center justify-center p-6 neubrutalist-create-tile cursor-pointer group"
                 title="Create new canvas"
               >
-                <div className="p-3.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 group-hover:scale-105 transition-transform mb-3">
-                  <Plus className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+                <div className="w-[54px] h-[54px] rounded-full bg-white dark:bg-slate-800 border-2 border-[#475569] dark:border-slate-500 group-hover:border-[#1a1a1a] dark:group-hover:border-white group-hover:scale-105 transition-all mb-3 flex items-center justify-center shadow-sm">
+                  <Plus className="w-6 h-6 text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white transition-colors" />
                 </div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-sm font-medium text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white transition-colors">
                   Create new canvas
                 </span>
               </button>
 
               {/* Remaining Tiles: Square cards for each canvas */}
-              {filteredCanvases.map((canvas) => (
-                <motion.div
-                  key={canvas.id}
-                  layoutId={`canvas-card-${canvas.id}`}
-                  onClick={() => {
-                    if (closingCanvasId || activeCanvasId !== null) return;
-                    setSelectedCanvas(canvas);
-                  }}
-                  className="aspect-square relative flex flex-col items-center justify-center p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm hover:shadow-md transition-colors cursor-pointer group"
-                >
-                  {/* Three-dot menu button in corner */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenuCanvasId((prev) => (prev === canvas.id ? null : canvas.id));
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200 rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="Canvas options"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
+              {filteredCanvases.map((canvas, index) => {
+                const variant = getCardVariant(index);
+                const { date, time } = formatCanvasDate(
+                  canvas.modified_at || canvas.modifiedAt || canvas.created_at || canvas.createdAt
+                );
 
-                    {/* Popover Dropdown */}
-                    {activeMenuCanvasId === canvas.id && (
-                      <div
-                        ref={menuRef}
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30"
+                const isOpening = unlockingCanvas?.id === canvas.id;
+                const isActive = activeCanvasId === canvas.id;
+                const isClosing = closingCanvasId === canvas.id;
+                const isEnlarged = isOpening || isActive;
+
+                return (
+                  <motion.div
+                    key={canvas.id}
+                    onClick={() => {
+                      if (activeCanvasId !== null || unlockingCanvas !== null) return;
+                      setUnlockingCanvas(canvas);
+                    }}
+                    initial={false}
+                    animate={
+                      isEnlarged
+                        ? { scale: 1.08, y: -6, zIndex: 20 }
+                        : { scale: 1, y: 0, zIndex: 1 }
+                    }
+                    whileHover={
+                      !isEnlarged && !isClosing
+                        ? { scale: 1.03, y: -4, transition: { duration: 0.2, ease: 'easeOut' } }
+                        : undefined
+                    }
+                    whileTap={
+                      !isEnlarged && !isClosing
+                        ? { scale: 0.99, transition: { duration: 0.1 } }
+                        : undefined
+                    }
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className={`aspect-square relative flex items-center justify-center neubrutalist-card ${variant.cardClassName} cursor-pointer group`}
+                  >
+                    {/* Pattern Layer */}
+                    <div
+                      className={`absolute inset-0 pointer-events-none ${variant.patternClassName}`}
+                      aria-hidden="true"
+                    />
+
+                    {/* Top-left: Date and Time */}
+                    <div className="absolute top-5 left-6 z-10 flex flex-col text-left font-mono select-none pointer-events-none">
+                      <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 opacity-[0.35]">
+                        {date}
+                      </span>
+                      {time && (
+                        <span className="text-[11px] font-medium text-slate-900 dark:text-slate-100 opacity-[0.20]">
+                          {time}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Top-right: Three-dot context menu trigger restyled with accent color */}
+                    <div className="absolute top-4 right-4 z-20">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuCanvasId((prev) => (prev === canvas.id ? null : canvas.id));
+                        }}
+                        className="p-1.5 rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                        style={{ color: 'var(--card-accent)' }}
+                        title="Canvas options"
+                        aria-label="Canvas options"
                       >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuCanvasId(null);
-                            setRenameTarget(canvas);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                          Rename
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuCanvasId(null);
-                            setDuplicateTarget(canvas);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Copy className="w-3.5 h-3.5 text-slate-400" />
-                          Duplicate
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setActiveMenuCanvasId(null);
-                            try {
-                              await exportCanvas(canvas.id);
-                            } catch (err) {
-                              console.error('Failed to export canvas:', err);
-                            }
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Download className="w-3.5 h-3.5 text-slate-400" />
-                          Export
-                        </button>
-                        <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuCanvasId(null);
-                            setDeleteTarget(canvas);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                        <Menu className="w-5 h-5" />
+                      </button>
 
-                  {/* Center Padlock Icon */}
-                  <div className="p-3.5 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50 group-hover:scale-105 transition-transform">
-                    <Lock className="w-7 h-7 text-slate-400 dark:text-slate-500" />
-                  </div>
+                      {/* Popover Dropdown */}
+                      {activeMenuCanvasId === canvas.id && (
+                        <div
+                          ref={menuRef}
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30"
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuCanvasId(null);
+                              setRenameTarget(canvas);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                            Rename
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuCanvasId(null);
+                              setDuplicateTarget(canvas);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                            Duplicate
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setActiveMenuCanvasId(null);
+                              try {
+                                await exportCanvas(canvas.id);
+                              } catch (err) {
+                                console.error('Failed to export canvas:', err);
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5 text-slate-400" />
+                            Export
+                          </button>
+                          <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuCanvasId(null);
+                              setDeleteTarget(canvas);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Bottom-right Canvas Name */}
-                  <div className="absolute bottom-4 right-4 text-right max-w-[85%]">
-                    <span
-                      className="block text-sm font-medium text-slate-800 dark:text-slate-200 truncate"
-                      title={canvas.name}
-                    >
-                      {canvas.name}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                    {/* Center Padlock Icon Badge */}
+                    <div className="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-slate-800 border-2 border-[#1a1a1a] dark:border-slate-600 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.18)] dark:shadow-[0_0_14px_rgba(0,0,0,0.7)] group-hover:scale-105 group-hover:shadow-[0_0_18px_rgba(0,0,0,0.28)] dark:group-hover:shadow-[0_0_20px_rgba(0,0,0,0.85)] transition-all z-10">
+                      <Lock className="w-5 h-5 text-[#1a1a1a] dark:text-slate-200" />
+                    </div>
+
+                    {/* Bottom-left Canvas Name */}
+                    <div className="absolute bottom-5 left-6 text-left max-w-[85%] z-10">
+                      <span
+                        className="block text-base font-bold text-slate-900 dark:text-slate-100 truncate"
+                        title={canvas.name}
+                      >
+                        {canvas.name}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
 
@@ -297,85 +315,7 @@ export const CanvasGrid: React.FC = () => {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
       />
-      {/* Expanded Canvas Card Overlay (Shared Layout) */}
-      <AnimatePresence>
-        {selectedCanvas && (
-          <motion.div
-            key="canvas-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={activeCanvasId === null && !closingCanvasId ? handleCloseUnlock : undefined}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
-          />
-        )}
-        {selectedCanvas && (
-          <motion.div
-            ref={expandedContainerRef}
-            key={`expanded-${selectedCanvas.id}`}
-            layoutId={`canvas-card-${selectedCanvas.id}`}
-            className="fixed inset-0 z-40 bg-white dark:bg-slate-900 overflow-hidden flex flex-col items-center justify-center"
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          >
-            {/* Top-left back arrow button */}
-            {activeCanvasId === null && !closingCanvasId && (
-              <motion.button
-                type="button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                transition={{ delay: 0.15, duration: 0.2 }}
-                onClick={handleCloseUnlock}
-                disabled={isSubmittingUnlock}
-                className="absolute top-5 left-5 sm:top-6 sm:left-8 z-30 p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Back to grid"
-                aria-label="Back to grid"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </motion.button>
-            )}
 
-            {/* Content: Password form when unlocking, or Lock icon & title when active / closing */}
-            {activeCanvasId === null && !closingCanvasId ? (
-              <div className="flex-1 flex items-center justify-center p-6 w-full">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                  transition={{ delay: 0.2, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full max-w-sm"
-                >
-                  <CanvasUnlockModal
-                    canvas={selectedCanvas}
-                    isOpen={true}
-                    onClose={handleCloseUnlock}
-                    containerRef={expandedContainerRef}
-                    onSubmittingChange={setIsSubmittingUnlock}
-                  />
-                </motion.div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center relative w-full h-full">
-                {/* Center Padlock Icon */}
-                <div className="p-3.5 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50">
-                  <Lock className="w-7 h-7 text-slate-400 dark:text-slate-500" />
-                </div>
-
-                {/* Bottom-right Canvas Name */}
-                <div className="absolute bottom-4 right-4 text-right max-w-[85%]">
-                  <span
-                    className="block text-sm font-medium text-slate-800 dark:text-slate-200 truncate"
-                    title={selectedCanvas.name}
-                  >
-                    {selectedCanvas.name}
-                  </span>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
       <RenameCanvasModal
         canvas={renameTarget}
         isOpen={renameTarget !== null}

@@ -1,0 +1,174 @@
+/* Neubrutalist card styling & 9 cycling patterns */
+
+.neubrutalist-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border: 3px solid #1a1a1a;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 8px 8px 0 var(--card-accent, #1a1a1a);
+  transition: box-shadow 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.dark .neubrutalist-card {
+  background-color: #0f172a;
+  border-color: #334155;
+  box-shadow: 8px 8px 0 var(--card-accent, #cbd5e1);
+}
+
+.neubrutalist-card:hover {
+  box-shadow: 12px 12px 0 var(--card-accent, #1a1a1a);
+}
+
+.dark .neubrutalist-card:hover {
+  box-shadow: 12px 12px 0 var(--card-accent, #cbd5e1);
+}
+
+.neubrutalist-card:active {
+  box-shadow: 8px 8px 0 var(--card-accent, #1a1a1a);
+}
+
+.dark .neubrutalist-card:active {
+  box-shadow: 8px 8px 0 var(--card-accent, #cbd5e1);
+}
+
+/* New-canvas-tile (first grid tile) */
+.neubrutalist-create-tile {
+  position: relative;
+  background-color: #ffffff;
+  border: 3px dashed #94a3b8;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: none;
+  transition: all 0.25s ease;
+}
+
+.dark .neubrutalist-create-tile {
+  background-color: #0f172a;
+  border-color: #475569;
+}
+
+.neubrutalist-create-tile:hover {
+  border-color: #64748b;
+  transform: translateY(-4px) scale(1.025);
+  box-shadow: 8px 8px 0 #e2e8f0;
+}
+
+.dark .neubrutalist-create-tile:hover {
+  border-color: #94a3b8;
+  box-shadow: 8px 8px 0 #1e293b;
+}
+
+.neubrutalist-create-tile:active {
+  transform: translateY(-2px);
+}
+
+/* 9 Variant Accents */
+.card-variant-1 { --card-accent: #1a1a1a; }
+.dark .card-variant-1 { --card-accent: #cbd5e1; }
+
+.card-variant-2 { --card-accent: #e94f4f; }
+.dark .card-variant-2 { --card-accent: #f87171; }
+
+.card-variant-3 { --card-accent: #10b981; }
+.dark .card-variant-3 { --card-accent: #34d399; }
+
+.card-variant-4 { --card-accent: #4f46e5; }
+.dark .card-variant-4 { --card-accent: #818cf8; }
+
+.card-variant-5 { --card-accent: #f5a623; }
+.dark .card-variant-5 { --card-accent: #fbbf24; }
+
+.card-variant-6 { --card-accent: #f472b6; }
+.dark .card-variant-6 { --card-accent: #f472b6; }
+
+.card-variant-7 { --card-accent: #8b5cf6; }
+.dark .card-variant-7 { --card-accent: #a78bfa; }
+
+.card-variant-8 { --card-accent: #f59e0b; }
+.dark .card-variant-8 { --card-accent: #fbbf24; }
+
+.card-variant-9 { --card-accent: #ec4899; }
+.dark .card-variant-9 { --card-accent: #f472b6; }
+
+/* 9 Pattern Layers */
+.pattern-variant-1 {
+  background-image: repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(0,0,0,0.04) 6px, rgba(0,0,0,0.04) 7px);
+}
+.dark .pattern-variant-1 {
+  background-image: repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(255,255,255,0.06) 6px, rgba(255,255,255,0.06) 7px);
+}
+
+.pattern-variant-2 {
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(233,79,79,0.06) 8px, rgba(233,79,79,0.06) 9px);
+}
+.dark .pattern-variant-2 {
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(233,79,79,0.15) 8px, rgba(233,79,79,0.15) 9px);
+}
+
+.pattern-variant-3 {
+  background-image: repeating-linear-gradient(45deg, transparent 0px, transparent 8px, rgba(16,185,129,0.15) 8px, rgba(16,185,129,0.15) 10px, transparent 10px, transparent 18px);
+}
+.dark .pattern-variant-3 {
+  background-image: repeating-linear-gradient(45deg, transparent 0px, transparent 8px, rgba(16,185,129,0.22) 8px, rgba(16,185,129,0.22) 10px, transparent 10px, transparent 18px);
+}
+
+.pattern-variant-4 {
+  background-image: repeating-linear-gradient(-45deg, transparent 0px, transparent 10px, rgba(79,70,229,0.05) 10px, rgba(79,70,229,0.05) 12px, transparent 12px, transparent 22px);
+}
+.dark .pattern-variant-4 {
+  background-image: repeating-linear-gradient(-45deg, transparent 0px, transparent 10px, rgba(129,140,248,0.16) 10px, rgba(129,140,248,0.16) 12px, transparent 12px, transparent 22px);
+}
+
+.pattern-variant-5 {
+  background-image: repeating-linear-gradient(45deg, transparent 0px, transparent 10px, rgba(245,166,35,0.06) 10px, rgba(245,166,35,0.06) 11px),
+                    repeating-linear-gradient(-45deg, transparent 0px, transparent 10px, rgba(245,166,35,0.06) 10px, rgba(245,166,35,0.06) 11px);
+}
+.dark .pattern-variant-5 {
+  background-image: repeating-linear-gradient(45deg, transparent 0px, transparent 10px, rgba(245,166,35,0.16) 10px, rgba(245,166,35,0.16) 11px),
+                    repeating-linear-gradient(-45deg, transparent 0px, transparent 10px, rgba(245,166,35,0.16) 10px, rgba(245,166,35,0.16) 11px);
+}
+
+.pattern-variant-6 {
+  background-image: linear-gradient(to right, rgba(244,114,182,0.06) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(244,114,182,0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.dark .pattern-variant-6 {
+  background-image: linear-gradient(to right, rgba(244,114,182,0.16) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(244,114,182,0.16) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.pattern-variant-7 {
+  background-image: repeating-linear-gradient(90deg, transparent 0px, transparent 14px, rgba(139,92,246,0.05) 14px, rgba(139,92,246,0.05) 16px),
+                    repeating-linear-gradient(0deg, transparent 0px, transparent 14px, rgba(139,92,246,0.05) 14px, rgba(139,92,246,0.05) 16px);
+}
+.dark .pattern-variant-7 {
+  background-image: repeating-linear-gradient(90deg, transparent 0px, transparent 14px, rgba(167,139,250,0.16) 14px, rgba(167,139,250,0.16) 16px),
+                    repeating-linear-gradient(0deg, transparent 0px, transparent 14px, rgba(167,139,250,0.16) 14px, rgba(167,139,250,0.16) 16px);
+}
+
+.pattern-variant-8 {
+  background-image: radial-gradient(circle, rgba(245,158,11,0.08) 2px, transparent 2px),
+                    repeating-linear-gradient(0deg, transparent 0px, transparent 23px, rgba(245,158,11,0.04) 23px, rgba(245,158,11,0.04) 24px);
+  background-size: 24px 24px, 100% 24px;
+}
+.dark .pattern-variant-8 {
+  background-image: radial-gradient(circle, rgba(245,158,11,0.18) 2px, transparent 2px),
+                    repeating-linear-gradient(0deg, transparent 0px, transparent 23px, rgba(245,158,11,0.12) 23px, rgba(245,158,11,0.12) 24px);
+  background-size: 24px 24px, 100% 24px;
+}
+
+.pattern-variant-9 {
+  background-image: radial-gradient(circle, rgba(236,72,153,0.06) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+.dark .pattern-variant-9 {
+  background-image: radial-gradient(circle, rgba(236,72,153,0.18) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}

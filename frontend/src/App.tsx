@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { useUIStore } from './stores/uiStore';
 import { useGraphStore } from './stores/graphStore';
@@ -10,17 +10,21 @@ import NodeDetailPanel from './components/sidebar/NodeDetailPanel';
 import EdgeForm from './components/forms/EdgeForm';
 import ConfirmDialog from './components/shared/ConfirmDialog';
 import { Edge, GraphNode } from './types/graph';
-import { Plus, Mail, User, Smartphone } from 'lucide-react';
+import { Plus, Mail, User, Smartphone, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useCanvasStore } from './stores/canvasStore';
 import CanvasGrid from './components/grid/CanvasGrid';
+import CanvasUnlockModal from './components/grid/CanvasUnlockModal';
 
 function App() {
   const { isUnlocked } = useAuthStore();
-  const { activeCanvasId, fetchCanvases } = useCanvasStore();
+  const { activeCanvasId, fetchCanvases, unlockingCanvas, setUnlockingCanvas } = useCanvasStore();
   const { theme, isEditMode } = useUIStore();
   const { fetchGraph, deleteNode, deleteEdge: storeDeleteEdge } = useGraphStore();
+
+  const [isSubmittingUnlock, setIsSubmittingUnlock] = useState(false);
+  const unlockOverlayRef = useRef<HTMLDivElement>(null);
 
   const [edgeFormOpen, setEdgeFormOpen] = useState(false);
   const [edgeFormEdge, setEdgeFormEdge] = useState<Edge | null>(null);
@@ -90,11 +94,11 @@ function App() {
         {activeCanvasId !== null && (
           <motion.div
             key="graph-view"
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed inset-0 z-50 flex flex-col bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors"
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="fixed inset-0 z-40 flex flex-col bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors"
           >
             <TopBar />
       
@@ -156,6 +160,63 @@ function App() {
         onCancel={() => setConfirmOpen(false)} 
       />
     </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {unlockingCanvas !== null && (
+          <motion.div
+            ref={unlockOverlayRef}
+            key="canvas-unlock-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col items-center justify-center"
+          >
+            {/* Top-left back arrow button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isSubmittingUnlock) return;
+                useCanvasStore.getState().setError(null);
+                setUnlockingCanvas(null);
+              }}
+              disabled={isSubmittingUnlock}
+              tabIndex={-1}
+              className="fixed top-5 left-5 sm:top-6 sm:left-8 z-50 p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Back to grid"
+              aria-label="Back to grid"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            {/* Centered password form */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full max-w-sm p-6"
+            >
+              <CanvasUnlockModal
+                canvas={unlockingCanvas}
+                isOpen={true}
+                onClose={() => {
+                  if (isSubmittingUnlock) return;
+                  useCanvasStore.getState().setError(null);
+                  setUnlockingCanvas(null);
+                }}
+                onSuccess={() => {
+                  setTimeout(() => {
+                    setUnlockingCanvas(null);
+                  }, 50);
+                }}
+                containerRef={unlockOverlayRef}
+                onSubmittingChange={setIsSubmittingUnlock}
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

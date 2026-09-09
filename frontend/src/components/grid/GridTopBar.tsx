@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Lock, MoreVertical, Upload, Settings, X } from 'lucide-react';
+import { Search, Lock, Menu, Upload, Settings, X, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useCanvasStore } from '../../stores/canvasStore';
+import { useUIStore } from '../../stores/uiStore';
 import { lockAuth } from '../../api/auth';
 
 interface GridTopBarProps {
@@ -19,6 +20,7 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
 }) => {
   const { logout } = useAuthStore();
   const { importCanvas } = useCanvasStore();
+  const { theme, toggleTheme } = useUIStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +134,16 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
           </button>
         )}
 
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-md"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle Theme"
+        >
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+
         {/* Lock */}
         <button
           onClick={handleLock}
@@ -141,14 +153,15 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
           <Lock className="w-5 h-5" />
         </button>
 
-        {/* Three-dot menu */}
+        {/* Hamburger menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((prev) => !prev)}
             className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-md"
             title="Options"
+            aria-label="Options"
           >
-            <MoreVertical className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </button>
 
           {menuOpen && (
