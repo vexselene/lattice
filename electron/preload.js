@@ -27,6 +27,22 @@ contextBridge.exposeInMainWorld('api', {
   cmdSearch: (query, types) => native.cmdSearch(query, types),
   cmdGeneratePassword: () => native.cmdGeneratePassword(),
 
+  // Canvas Lifecycle
+  cmdListCanvases: () => native.cmdListCanvases(),
+  cmdCreateCanvas: (name, password) => native.cmdCreateCanvas(name, password),
+  cmdOpenCanvas: (id, password) => native.cmdOpenCanvas(id, password),
+  cmdCloseCanvas: () => native.cmdCloseCanvas(),
+  cmdRenameCanvas: (id, newName) => native.cmdRenameCanvas(id, newName),
+  cmdDuplicateCanvas: (id, originalPassword, newPassword) =>
+    native.cmdDuplicateCanvas(id, originalPassword, newPassword),
+  cmdDeleteCanvas: (id, password) => native.cmdDeleteCanvas(id, password),
+  cmdExportCanvas: (id, destinationPath) => native.cmdExportCanvas(id, destinationPath),
+  cmdImportCanvas: (sourcePath) => native.cmdImportCanvas(sourcePath),
+
+  // Dialogs
+  showSaveDialog: (defaultFileName) => ipcRenderer.invoke('show-save-dialog', defaultFileName),
+  showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
+
   // Export
   exportSaveFile: (content, defaultFilename) =>
     ipcRenderer.invoke('export-save-file', { content, defaultFilename }),

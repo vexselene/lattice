@@ -12,8 +12,12 @@ import ConfirmDialog from './components/shared/ConfirmDialog';
 import { Edge, GraphNode } from './types/graph';
 import { Plus, Mail, User, Smartphone } from 'lucide-react';
 
+import { useCanvasStore } from './stores/canvasStore';
+import CanvasGrid from './components/grid/CanvasGrid';
+
 function App() {
   const { isUnlocked } = useAuthStore();
+  const { activeCanvasId, fetchCanvases } = useCanvasStore();
   const { theme, isEditMode } = useUIStore();
   const { fetchGraph, deleteNode, deleteEdge: storeDeleteEdge } = useGraphStore();
 
@@ -27,11 +31,20 @@ function App() {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
+  // When transitioning into state 2 for the first time after vault unlock,
+  // call canvasStore.fetchCanvases() once so the grid has data without a manual refresh
   useEffect(() => {
     if (isUnlocked) {
+      fetchCanvases();
+    }
+  }, [isUnlocked, fetchCanvases]);
+
+  // When a canvas is active, fetch its graph data
+  useEffect(() => {
+    if (isUnlocked && activeCanvasId) {
       fetchGraph();
     }
-  }, [isUnlocked, fetchGraph]);
+  }, [isUnlocked, activeCanvasId, fetchGraph]);
 
   const handleDeleteNode = (node: GraphNode) => {
     setConfirmData({
@@ -57,6 +70,7 @@ function App() {
     setConfirmOpen(true);
   };
 
+  // State 1: Vault locked -> UnlockScreen
   if (!isUnlocked) {
     return (
       <>
@@ -65,6 +79,18 @@ function App() {
       </>
     );
   }
+
+  // State 2: Vault unlocked & no active canvas -> CanvasGrid
+  if (activeCanvasId === null) {
+    return (
+      <>
+        <AutoLockTimer />
+        <CanvasGrid />
+      </>
+    );
+  }
+
+  // State 3: Vault unlocked & active canvas opened -> Existing GraphCanvas view
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-[#0B0F19] overflow-hidden text-slate-900 dark:text-slate-100 transition-colors">

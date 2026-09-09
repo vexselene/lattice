@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useCanvasStore } from './canvasStore';
 
 interface AuthState {
   isSetup: boolean;
@@ -17,5 +18,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   setSetup: (val) => set({ isSetup: val }),
   setUnlocked: (val) => set({ isUnlocked: val }),
   setAutoLock: (minutes) => set({ autoLockMinutes: minutes }),
-  logout: () => set({ isUnlocked: false }),
+  logout: () => {
+    useCanvasStore.getState().resetCanvasState();
+    set({ isUnlocked: false });
+  },
 }));

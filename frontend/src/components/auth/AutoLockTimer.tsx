@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { useCanvasStore } from '../../stores/canvasStore';
 import { lockAuth } from '../../api/auth';
 
 export const AutoLockTimer = () => {
@@ -16,6 +17,7 @@ export const AutoLockTimer = () => {
         try {
           await lockAuth();
         } catch (e) {}
+        useCanvasStore.getState().resetCanvasState();
         logout();
       }, autoLockMinutes * 60 * 1000);
     };

@@ -57,6 +57,31 @@ if (!gotTheLock) {
     return { canceled: false, filePath };
   });
 
+  // IPC Handlers for canvas bundle export/import dialogs
+  ipcMain.handle('show-save-dialog', async (event, defaultFileName) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: defaultFileName || 'canvas.lattice',
+      filters: [{ name: 'Lattice Canvas Bundle', extensions: ['lattice'] }],
+    });
+    if (canceled || !filePath) {
+      return null;
+    }
+    return filePath;
+  });
+
+  ipcMain.handle('show-open-dialog', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      filters: [{ name: 'Lattice Canvas Bundle', extensions: ['lattice'] }],
+    });
+    if (canceled || !filePaths || filePaths.length === 0) {
+      return null;
+    }
+    return filePaths[0];
+  });
+
   function createWindow() {
     mainWindow = new BrowserWindow({
       width: 1200,

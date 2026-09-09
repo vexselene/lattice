@@ -1,21 +1,21 @@
 
 import { Sun, Moon, Lock, Eye, Edit2 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
-import { useAuthStore } from '../../stores/authStore';
-import { lockAuth } from '../../api/auth';
+import { useCanvasStore } from '../../stores/canvasStore';
 import SearchBar from './SearchBar';
 import TypeFilterChips from './TypeFilterChips';
 import clsx from 'clsx';
 
 export const TopBar = () => {
   const { theme, toggleTheme, isEditMode, toggleEditMode } = useUIStore();
-  const { logout } = useAuthStore();
+  const { closeCanvas } = useCanvasStore();
 
-  const handleLock = async () => {
+  const handleCloseCanvas = async () => {
     try {
-      await lockAuth();
-    } catch {}
-    logout();
+      await closeCanvas();
+    } catch (err) {
+      console.error('Failed to close canvas:', err);
+    }
   };
 
   return (
@@ -61,9 +61,9 @@ export const TopBar = () => {
           {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
         <button
-          onClick={handleLock}
-          className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-          title="Lock Database"
+          onClick={handleCloseCanvas}
+          className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-md"
+          title="Lock Canvas"
         >
           <Lock className="w-5 h-5" />
         </button>

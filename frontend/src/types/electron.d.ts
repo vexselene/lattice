@@ -19,6 +19,15 @@ export interface ExportSaveResult {
   filePath?: string;
 }
 
+export interface CanvasSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+  modifiedAt: string;
+  created_at?: string;
+  modified_at?: string;
+}
+
 export interface LatticeApi {
   // Setup & Auth
   cmdAuthSetup: (password: string) => Promise<void>;
@@ -27,6 +36,21 @@ export interface LatticeApi {
   cmdAuthStatus: () => any | Promise<any>;
   cmdUpdateSettings: (autoLockMinutes: number) => void | Promise<void>;
   cmdGeneratePassword: () => any | Promise<any>;
+
+  // Canvas Lifecycle
+  cmdListCanvases: () => CanvasSummary[] | Promise<CanvasSummary[]>;
+  cmdCreateCanvas: (name: string, password: string) => Promise<CanvasSummary>;
+  cmdOpenCanvas: (id: string, password: string) => Promise<void>;
+  cmdCloseCanvas: () => void | Promise<void>;
+  cmdRenameCanvas: (id: string, newName: string) => void | Promise<void>;
+  cmdDuplicateCanvas: (id: string, originalPassword: string, newPassword?: string | null) => Promise<CanvasSummary>;
+  cmdDeleteCanvas: (id: string, password: string) => Promise<void>;
+  cmdExportCanvas: (id: string, destinationPath: string) => void | Promise<void>;
+  cmdImportCanvas: (sourcePath: string) => CanvasSummary | Promise<CanvasSummary>;
+
+  // Dialogs
+  showSaveDialog: (defaultFileName?: string) => Promise<string | null>;
+  showOpenDialog: () => Promise<string | null>;
 
   // Graph / Nodes / Edges / Search
   cmdGetGraph: () => GraphData | Promise<GraphData>;
