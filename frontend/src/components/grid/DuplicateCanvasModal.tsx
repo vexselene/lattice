@@ -1,67 +1,61 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Copy, X } from 'lucide-react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { formatErrorMessage } from '../../api/canvas';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import type { CanvasSummary } from '../../api/canvas';
 
-interface CreateCanvasModalProps {
+interface DuplicateCanvasModalProps {
+  canvas: CanvasSummary | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
+export const DuplicateCanvasModal: React.FC<DuplicateCanvasModalProps> = ({
+  canvas,
   isOpen,
   onClose,
 }) => {
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [originalPassword, setOriginalPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const nameInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  const { createCanvas } = useCanvasStore();
+  const { duplicateCanvas } = useCanvasStore();
 
   useFocusTrap(modalRef, isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {
-      setName('');
-      setPassword('');
-      setConfirmPassword('');
+      setOriginalPassword('');
+      setNewPassword('');
       setLocalError(null);
       setTimeout(() => {
-        nameInputRef.current?.focus();
+        passwordInputRef.current?.focus();
       }, 50);
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !canvas) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
 
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setLocalError('Canvas name is required');
-      return;
-    }
-
-    if (!password) {
-      setLocalError('Canvas password is required');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setLocalError('Passwords do not match');
+    if (!originalPassword) {
+      setLocalError('Original password is required');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await createCanvas(trimmedName, password);
+      await duplicateCanvas(
+        canvas.id,
+        originalPassword,
+        newPassword ? newPassword : undefined
+      );
       onClose();
     } catch (err: any) {
       setLocalError(formatErrorMessage(err));
@@ -82,20 +76,20 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Plus Icon */}
+        {/* Icon */}
         <div className="flex justify-center mb-1">
           <div className="p-3.5 bg-[#4F46E5]/10 rounded-full">
-            <Plus className="w-7 h-7 text-[#4F46E5]" />
+            <Copy className="w-7 h-7 text-[#4F46E5]" />
           </div>
         </div>
 
         {/* Title */}
         <div className="text-center">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-            Create New Canvas
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate" title={canvas.name}>
+            Duplicate Canvas
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Choose a name and password for this canvas
+            Create a copy of &ldquo;{canvas.name}&rdquo;
           </p>
         </div>
 
@@ -110,14 +104,17 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 mt-1">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Canvas Name
+              Original Password <span className="text-red-500">*</span>
             </label>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              The current password for this canvas
+            </p>
             <input
-              ref={nameInputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Work Investigation"
+              ref={passwordInputRef}
+              type="password"
+              value={originalPassword}
+              onChange={(e) => setOriginalPassword(e.target.value)}
+              placeholder="Current canvas password"
               disabled={isSubmitting}
               className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50"
               required
@@ -126,31 +123,18 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Canvas Password
+              New Password (optional)
             </label>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Leave blank to keep the original password
+            </p>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Leave blank to keep same"
               disabled={isSubmitting}
               className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm Password"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50"
-              required
             />
           </div>
 
@@ -165,10 +149,10 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !name.trim() || !password}
+              disabled={isSubmitting || !originalPassword}
               className="flex-1 py-2 px-4 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#4F46E5]"
             >
-              {isSubmitting ? 'Creating…' : 'Create'}
+              {isSubmitting ? 'Duplicating…' : 'Duplicate'}
             </button>
           </div>
         </form>
@@ -177,4 +161,4 @@ export const CreateCanvasModal: React.FC<CreateCanvasModalProps> = ({
   );
 };
 
-export default CreateCanvasModal;
+export default DuplicateCanvasModal;
