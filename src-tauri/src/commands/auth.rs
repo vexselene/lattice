@@ -110,10 +110,7 @@ pub async fn auth_unlock_core(
         );
 
         let conn_res = (|| -> Result<rusqlite::Connection, rusqlite::Error> {
-            let conn = rusqlite::Connection::open(&db_file_owned)?;
-            let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
-            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
-            schema::configure_connection(&conn)?;
+            let conn = schema::open_sqlcipher_connection(&db_file_owned, &key)?;
 
             if !is_first_run {
                 // Verify master key against existing database

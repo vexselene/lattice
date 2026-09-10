@@ -202,10 +202,7 @@ pub async fn create_canvas_core(
     let create_res = tokio::task::spawn_blocking(move || {
         let key = crypto::derive_master_key(&password_owned, &salt);
         let conn_res = (|| -> Result<(), rusqlite::Error> {
-            let conn = rusqlite::Connection::open(&db_file_owned)?;
-            let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
-            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
-            schema::configure_connection(&conn)?;
+            let conn = schema::open_sqlcipher_connection(&db_file_owned, &key)?;
             schema::create_schema(&conn)?;
             Ok(())
         })();
@@ -319,10 +316,7 @@ pub async fn open_canvas_core(
     let (key, conn_res) = tokio::task::spawn_blocking(move || {
         let key = crypto::derive_master_key(&password, &salt);
         let conn_res = (|| -> Result<rusqlite::Connection, rusqlite::Error> {
-            let conn = rusqlite::Connection::open(&db_file)?;
-            let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
-            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
-            schema::configure_connection(&conn)?;
+            let conn = schema::open_sqlcipher_connection(&db_file, &key)?;
 
             let _verify: i64 =
                 conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
@@ -548,6 +542,26 @@ pub async fn duplicate_canvas_core(
             }
         }
         Some(new_pwd) => {
+            // Check backoff rate-limiting pre-flight before attempting derivation/verification
+            let delay_to_sleep = {
+                let state_guard = state
+                    .lock()
+                    .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+                match state_guard.check_attempt() {
+                    Err(BackoffError::RateLimited { wait_remaining }) => {
+                        return Err(AuthError::RateLimited {
+                            wait_remaining_ms: wait_remaining.as_millis() as u64,
+                        });
+                    }
+                    Ok(delay) if delay > Duration::ZERO => Some(delay),
+                    _ => None,
+                }
+            };
+
+            if let Some(delay) = delay_to_sleep {
+                tokio::time::sleep(delay).await;
+            }
+
             let orig_salt_bytes =
                 std::fs::read(&orig_salt).map_err(|e| AuthError::Io(e.to_string()))?;
             if orig_salt_bytes.len() != crypto::SALT_SIZE {
@@ -565,10 +579,7 @@ pub async fn duplicate_canvas_core(
             let new_db_owned = new_db.clone();
 
             let rekey_res = tokio::task::spawn_blocking(move || {
-                let conn = rusqlite::Connection::open(&new_db_owned)?;
-                let hex_old_key: String = old_key.iter().map(|b| format!("{:02x}", b)).collect();
-                conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_old_key))?;
-                schema::configure_connection(&conn)?;
+                let conn = schema::open_sqlcipher_connection(&new_db_owned, &old_key)?;
 
                 // Verify old key works on copy
                 let _verify: i64 =
@@ -577,10 +588,9 @@ pub async fn duplicate_canvas_core(
                 // Generate fresh salt and new key
                 let fresh_salt = crypto::generate_salt();
                 let new_key = crypto::derive_master_key(&new_pwd_owned, &fresh_salt);
-                let hex_new_key: String = new_key.iter().map(|b| format!("{:02x}", b)).collect();
 
                 // Rekey SQLCipher database
-                conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_new_key))?;
+                schema::rekey_sqlcipher_connection(&conn, &new_key)?;
 
                 // Verify rekey was successful
                 let _verify2: i64 =
@@ -592,10 +602,20 @@ pub async fn duplicate_canvas_core(
             .map_err(|e| AuthError::Io(format!("Worker thread join error: {}", e)))?;
 
             let fresh_salt = match rekey_res {
-                Ok(salt) => salt,
+                Ok(salt) => {
+                    let mut state_guard = state
+                        .lock()
+                        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+                    state_guard.record_attempt(true);
+                    salt
+                }
                 Err(err) => {
                     let _ = std::fs::remove_file(&new_db);
                     if is_sqlcipher_key_error(&err) {
+                        let mut state_guard = state
+                            .lock()
+                            .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+                        state_guard.record_attempt(false);
                         return Err(AuthError::InvalidPassword);
                     }
                     return Err(AuthError::Database(err.to_string()));
@@ -701,10 +721,7 @@ pub async fn delete_canvas_core(
     let db_file = paths::canvas_db_path(&id)?;
     let verify_res = tokio::task::spawn_blocking(move || {
         let key = crypto::derive_master_key(&password, &salt);
-        let conn = rusqlite::Connection::open(&db_file)?;
-        let hex_key: String = key.iter().map(|b| format!("{:02x}", b)).collect();
-        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
-        schema::configure_connection(&conn)?;
+        let conn = schema::open_sqlcipher_connection(&db_file, &key)?;
         let _verify: i64 =
             conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
         Ok(())
@@ -939,18 +956,14 @@ pub async fn change_canvas_password_core(
         let new_salt = crypto::generate_salt();
         let new_key = crypto::derive_master_key(&new_pwd_owned, &new_salt);
 
-        let conn = rusqlite::Connection::open(&db_file)?;
-        let hex_old_key: String = old_key.iter().map(|b| format!("{:02x}", b)).collect();
-        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_old_key))?;
-        schema::configure_connection(&conn)?;
+        let conn = schema::open_sqlcipher_connection(&db_file, &old_key)?;
 
         // Verify old password works
         let _verify: i64 =
             conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
 
         // Rekey SQLCipher database
-        let hex_new_key: String = new_key.iter().map(|b| format!("{:02x}", b)).collect();
-        conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_new_key))?;
+        schema::rekey_sqlcipher_connection(&conn, &new_key)?;
 
         // Verify rekey was successful
         let _verify2: i64 =
@@ -1687,5 +1700,64 @@ mod tests {
 
         // Canvas is still active
         assert!(state.lock().unwrap().active_canvas.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_canvas_rate_limiting_after_consecutive_failures() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("dup_rate_limiting");
+        let state = env.setup_unlocked_state();
+
+        let orig = create_canvas_core(&state, "Sensitive Canvas".into(), "correct-pass".into())
+            .await
+            .unwrap();
+
+        // 3 consecutive failed duplication attempts with wrong original password
+        let r1 = duplicate_canvas_core(
+            &state,
+            orig.id.clone(),
+            "wrong-1".into(),
+            Some("new-pass".into()),
+        )
+        .await;
+        assert_eq!(r1, Err(AuthError::InvalidPassword));
+
+        let r2 = duplicate_canvas_core(
+            &state,
+            orig.id.clone(),
+            "wrong-2".into(),
+            Some("new-pass".into()),
+        )
+        .await;
+        assert_eq!(r2, Err(AuthError::InvalidPassword));
+
+        let r3 = duplicate_canvas_core(
+            &state,
+            orig.id.clone(),
+            "wrong-3".into(),
+            Some("new-pass".into()),
+        )
+        .await;
+        assert_eq!(r3, Err(AuthError::InvalidPassword));
+
+        {
+            let s = state.lock().unwrap();
+            assert_eq!(s.failed_attempts, 3);
+        }
+
+        // 4th attempt immediately must trigger RateLimited error without Argon2/SQLCipher work
+        let r4 = duplicate_canvas_core(
+            &state,
+            orig.id.clone(),
+            "wrong-4".into(),
+            Some("new-pass".into()),
+        )
+        .await;
+        match r4 {
+            Err(AuthError::RateLimited { wait_remaining_ms }) => {
+                assert!(wait_remaining_ms > 0 && wait_remaining_ms <= 1000);
+            }
+            other => panic!("Expected RateLimited error, got {:?}", other),
+        }
     }
 }

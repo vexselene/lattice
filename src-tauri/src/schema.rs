@@ -93,6 +93,47 @@ pub fn configure_connection(conn: &rusqlite::Connection) -> rusqlite::Result<()>
     conn.execute_batch("PRAGMA foreign_keys = ON;")
 }
 
+/// Opens a SQLCipher database connection, applies the 32-byte key via `PRAGMA key`,
+/// securely zeroizes the key string in memory immediately after execution,
+/// and configures runtime connection pragmas.
+pub fn open_sqlcipher_connection(
+    path: &std::path::Path,
+    key: &[u8; 32],
+) -> rusqlite::Result<rusqlite::Connection> {
+    let conn = rusqlite::Connection::open(path)?;
+    {
+        let mut pragma = zeroize::Zeroizing::new(String::with_capacity(80));
+        pragma.push_str("PRAGMA key = \"x'");
+        for b in key {
+            use std::fmt::Write;
+            let _ = write!(&mut *pragma, "{:02x}", b);
+        }
+        pragma.push_str("'\";");
+        conn.execute_batch(&pragma)?;
+    }
+    configure_connection(&conn)?;
+    Ok(conn)
+}
+
+/// Rekeys an open SQLCipher database connection to a new 32-byte key via `PRAGMA rekey`,
+/// securely zeroizes the new key string in memory immediately after execution.
+pub fn rekey_sqlcipher_connection(
+    conn: &rusqlite::Connection,
+    new_key: &[u8; 32],
+) -> rusqlite::Result<()> {
+    {
+        let mut pragma = zeroize::Zeroizing::new(String::with_capacity(82));
+        pragma.push_str("PRAGMA rekey = \"x'");
+        for b in new_key {
+            use std::fmt::Write;
+            let _ = write!(&mut *pragma, "{:02x}", b);
+        }
+        pragma.push_str("'\";");
+        conn.execute_batch(&pragma)?;
+    }
+    Ok(())
+}
+
 /// Initializes the complete schema on a newly opened or unlocked SQLite / SQLCipher connection.
 pub fn create_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     configure_connection(conn)?;
@@ -257,5 +298,52 @@ mod tests {
             .unwrap();
         assert_eq!(acc_exists, 1, "Account row should still exist");
         assert_eq!(email_after, None, "primary_email_id must be SET NULL on email delete");
+    }
+
+    #[test]
+    fn test_open_sqlcipher_connection_and_rekey() {
+        let unique: String = (0..16).map(|_| format!("{:02x}", rand::random::<u8>())).collect();
+        let path = std::env::temp_dir().join(format!("lattice_cipher_test_{}.db", unique));
+
+        let key1 = [0x42u8; 32];
+        let key2 = [0x99u8; 32];
+
+        // 1. Create encrypted DB with key1
+        {
+            let conn = open_sqlcipher_connection(&path, &key1).expect("open key1");
+            create_schema(&conn).expect("create schema");
+        }
+
+        // 2. Open with wrong key -> verify query error
+        {
+            let wrong_key = [0x00u8; 32];
+            let conn = open_sqlcipher_connection(&path, &wrong_key).expect("open handles PRAGMA key");
+            let verify_res: Result<i64, _> = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0));
+            assert!(verify_res.is_err(), "Querying with wrong key must fail");
+        }
+
+        // 3. Open with key1, rekey to key2
+        {
+            let conn = open_sqlcipher_connection(&path, &key1).expect("open key1");
+            let count: i64 = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0)).unwrap();
+            assert!(count > 0);
+            rekey_sqlcipher_connection(&conn, &key2).expect("rekey to key2");
+        }
+
+        // 4. Open with key1 must fail now
+        {
+            let conn = open_sqlcipher_connection(&path, &key1).expect("open key1");
+            let verify_res: Result<i64, _> = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0));
+            assert!(verify_res.is_err(), "Key1 must no longer decrypt after rekey");
+        }
+
+        // 5. Open with key2 must succeed
+        {
+            let conn = open_sqlcipher_connection(&path, &key2).expect("open key2");
+            let count: i64 = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0)).unwrap();
+            assert!(count > 0);
+        }
+
+        let _ = std::fs::remove_file(&path);
     }
 }

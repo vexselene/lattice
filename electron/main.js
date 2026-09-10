@@ -94,6 +94,32 @@ if (!gotTheLock) {
       },
     });
 
+    // Hardening: Deny all new-window creation requests
+    mainWindow.webContents.setWindowOpenHandler(() => {
+      return { action: 'deny' };
+    });
+
+    // Hardening: Prevent navigation away from the app's own loaded URL / origin
+    mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+      try {
+        const parsedUrl = new URL(navigationUrl);
+        if (process.env.VITE_DEV_SERVER_URL) {
+          const devUrl = new URL(process.env.VITE_DEV_SERVER_URL);
+          if (parsedUrl.origin !== devUrl.origin) {
+            event.preventDefault();
+          }
+        } else {
+          const expectedPath = path.resolve(__dirname, '../frontend/dist/index.html');
+          const expectedUrl = url.pathToFileURL(expectedPath).href;
+          if (parsedUrl.href !== expectedUrl) {
+            event.preventDefault();
+          }
+        }
+      } catch (err) {
+        event.preventDefault();
+      }
+    });
+
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
