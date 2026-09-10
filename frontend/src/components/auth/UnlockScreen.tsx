@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { unlockAuth, setupAuth, checkStatus } from '../../api/auth';
-import { Lock, Unlock } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import VaultLoader from './VaultLoader';
 
 export const UnlockScreen = () => {
   const [password, setPassword] = useState('');
@@ -10,7 +12,17 @@ export const UnlockScreen = () => {
   const [countdownSec, setCountdownSec] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setUnlocked, setSetup, isSetup, setAutoLock } = useAuthStore();
-  const [loading, setLoading] = useState(true);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [minBeatDone, setMinBeatDone] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Minimum aesthetic beat for initial loader
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinBeatDone(true);
+    }, 850);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     checkStatus()
@@ -20,10 +32,10 @@ export const UnlockScreen = () => {
         if (status.auto_lock_minutes) {
           setAutoLock(status.auto_lock_minutes);
         }
-        setLoading(false);
+        setStatusLoading(false);
       })
       .catch(() => {
-        setLoading(false);
+        setStatusLoading(false);
       });
   }, [setSetup, setUnlocked, setAutoLock]);
 
@@ -51,10 +63,20 @@ export const UnlockScreen = () => {
 
   const isRateLimited = rateLimitedUntil !== null && countdownSec > 0;
   const isDisabled = isRateLimited || isSubmitting;
+  const showLoader = statusLoading || !minBeatDone || isSubmitting;
+
+  // Auto focus input when form becomes ready
+  useEffect(() => {
+    if (!showLoader) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    }
+  }, [showLoader]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isRateLimited || isSubmitting) return;
+    if (!password || isDisabled) return;
     setIsSubmitting(true);
     setError('');
 
@@ -69,7 +91,7 @@ export const UnlockScreen = () => {
       let errorKey = '';
       let details: any = null;
 
-      let rawMsg = typeof err === 'string' ? err : err?.message || '';
+      const rawMsg = typeof err === 'string' ? err : err?.message || '';
       try {
         const parsed = typeof err === 'object' && err !== null && 'error' in err ? err : JSON.parse(rawMsg);
         if (parsed && typeof parsed === 'object' && 'error' in parsed) {
@@ -83,7 +105,7 @@ export const UnlockScreen = () => {
       switch (errorKey) {
         case 'AlreadySetup':
           setSetup(true);
-          setError('Vault is already set up. Please enter your master password.');
+          setError('Vault is already set up. Enter master password.');
           break;
         case 'InvalidPassword':
           setError('Incorrect password');
@@ -109,63 +131,116 @@ export const UnlockScreen = () => {
           );
           break;
       }
+      setPassword('');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (loading) return null;
-
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-4 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-sm w-full"
-      >
-        <div className="flex justify-center mb-4">
-          <div className="p-4 bg-[#4F46E5]/10 rounded-full">
-            {isSetup ? (
-              <Lock className="w-8 h-8 text-[#4F46E5]" />
-            ) : (
-              <Unlock className="w-8 h-8 text-[#4F46E5]" />
-            )}
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold text-center text-slate-900 dark:text-white">
-          {isSetup ? 'Unlock Lattice' : 'Setup Master Password'}
-        </h1>
-        {isRateLimited ? (
-          <p className="text-amber-500 dark:text-amber-400 text-sm text-center font-medium animate-pulse">
-            Try again in {countdownSec}s
-          </p>
-        ) : error ? (
-          <p className="text-red-500 text-sm text-center">{error}</p>
-        ) : null}
-        <div className="flex flex-col gap-2">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Master Password"
-            disabled={isDisabled}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isDisabled}
-          className="mt-2 w-full py-2 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#4F46E5]"
-        >
-          {isSubmitting
-            ? 'Decrypting…'
-            : isRateLimited
-            ? `Wait ${countdownSec}s`
-            : isSetup
-            ? 'Unlock'
-            : 'Initialize'}
-        </button>
-      </form>
+    <div className="flex h-screen w-full items-center justify-center bg-[#FAF8F9] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 transition-colors selection:bg-[#DE6B80]/20 selection:text-[#DE6B80]">
+      <AnimatePresence mode="wait">
+        {showLoader ? (
+          <motion.div
+            key="vault-loader"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="flex flex-col items-center justify-center"
+          >
+            <VaultLoader />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="vault-form"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex flex-col items-center justify-center w-full max-w-sm px-6"
+          >
+            {/* Minimal Branding */}
+            <div className="flex flex-col items-center text-center mb-8 select-none">
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Lattice<span className="text-[#DE6B80]">.</span>
+              </h1>
+              {!isSetup && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium tracking-wide">
+                  Set up master password to initialize vault
+                </p>
+              )}
+            </div>
+
+            {/* Minimal Password Field with integrated Arrow Button */}
+            <form onSubmit={handleSubmit} className="w-full flex flex-col items-center">
+              <div
+                className={`relative flex items-center w-full border-b-2 transition-colors duration-200 pb-2 ${
+                  error
+                    ? 'border-[#E05D55]'
+                    : 'border-slate-300 dark:border-slate-700 focus-within:border-[#DE6B80] dark:focus-within:border-[#DE6B80]'
+                }`}
+              >
+                <input
+                  ref={inputRef}
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError('');
+                  }}
+                  placeholder={isSetup ? 'Master password' : 'Create master password'}
+                  disabled={isDisabled}
+                  autoFocus
+                  className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-base font-medium focus:outline-none pr-3 disabled:opacity-50 tracking-wider"
+                  required
+                />
+
+                <button
+                  type="submit"
+                  disabled={!password || isDisabled}
+                  className="p-1 text-slate-400 hover:text-[#DE6B80] dark:hover:text-[#DE6B80] focus:text-[#DE6B80] disabled:opacity-20 disabled:hover:text-slate-400 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed group"
+                  title={isSetup ? 'Unlock vault' : 'Initialize vault'}
+                  aria-label={isSetup ? 'Unlock vault' : 'Initialize vault'}
+                >
+                  <ArrowRight
+                    className={`w-5 h-5 transition-all duration-200 ${
+                      password ? 'text-[#DE6B80] group-hover:translate-x-1' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Aesthetic Error / Rate limit notification */}
+              <div className="h-8 flex items-center justify-center mt-3 text-center">
+                <AnimatePresence>
+                  {isRateLimited ? (
+                    <motion.span
+                      key="rate-limit"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-xs font-mono font-medium text-amber-500 dark:text-amber-400"
+                    >
+                      Try again in {countdownSec}s
+                    </motion.span>
+                  ) : error ? (
+                    <motion.span
+                      key="error"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-xs font-medium text-[#E05D55] dark:text-[#f27e89]"
+                    >
+                      {error}
+                    </motion.span>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

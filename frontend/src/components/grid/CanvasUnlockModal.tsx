@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { CanvasSummary } from '../../api/canvas';
+import SpeederLoader from '../auth/SpeederLoader';
 
 interface CanvasUnlockModalProps {
   canvas: CanvasSummary | null;
@@ -49,6 +51,15 @@ export const CanvasUnlockModal: React.FC<CanvasUnlockModalProps> = ({
     }
   }, [isOpen, canvas, setError, onSubmittingChange]);
 
+  // Refocus input when returning from failed submission
+  useEffect(() => {
+    if (!isSubmitting) {
+      requestAnimationFrame(() => {
+        passwordInputRef.current?.focus();
+      });
+    }
+  }, [isSubmitting]);
+
   if (!isOpen || !canvas) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,84 +68,129 @@ export const CanvasUnlockModal: React.FC<CanvasUnlockModalProps> = ({
 
     setIsSubmitting(true);
     onSubmittingChange?.(true);
+
+    const startTime = Date.now();
     try {
       await openCanvas(canvas.id, password);
+
+      // Maintain a smooth minimum beat for the speeder loader (500ms)
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 500) {
+        await new Promise((r) => setTimeout(r, 500 - elapsed));
+      }
+
       if (!useCanvasStore.getState().error) {
         onSuccess?.();
+      } else {
+        setPassword('');
+        setIsSubmitting(false);
+        onSubmittingChange?.(false);
       }
-    } finally {
+    } catch {
+      setPassword('');
       setIsSubmitting(false);
       onSubmittingChange?.(false);
     }
   };
 
   return (
-    <div ref={fallbackRef} className="flex flex-col gap-4 w-full">
-      {/* Lock Icon */}
-      <div className="flex justify-center mb-1">
-        <div className="p-3.5 bg-[#4F46E5]/10 rounded-full">
-          <Lock className="w-7 h-7 text-[#4F46E5]" />
-        </div>
-      </div>
-
-      {/* Title */}
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate" title={canvas.name}>
-          {canvas.name}
-        </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Enter canvas password to unlock
-        </p>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <p className="text-red-500 dark:text-red-400 text-xs text-center font-medium bg-red-50 dark:bg-red-950/40 py-2 px-3 rounded border border-red-200 dark:border-red-900">
-          {error}
-        </p>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-1">
-        <div className="flex flex-col gap-1.5">
-          <input
-            ref={passwordInputRef}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Canvas Password"
-            readOnly={isSubmitting}
-            autoFocus
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            required
-          />
-        </div>
-
-        <div className="flex gap-2 mt-1">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isSubmitting}
-            className="flex-1 py-2 px-4 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md font-medium text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+    <div ref={fallbackRef} className="w-full flex flex-col items-center justify-center">
+      <AnimatePresence mode="wait">
+        {isSubmitting ? (
+          <motion.div
+            key="speeder-loader-view"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="flex flex-col items-center justify-center py-6"
           >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!password}
-            aria-busy={isSubmitting}
-            className={`flex-1 py-2 px-4 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-medium text-sm transition-colors ${
-              isSubmitting
-                ? 'opacity-75 cursor-wait'
-                : !password
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
+            <SpeederLoader />
+            <p className="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 mt-4 tracking-widest uppercase animate-pulse">
+              Decrypting canvas…
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="unlock-form-view"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="w-full flex flex-col items-center"
           >
-            {isSubmitting ? 'Decrypting…' : 'Unlock'}
-          </button>
-        </div>
-      </form>
+            {/* Minimal Canvas Title Branding */}
+            <div className="flex flex-col items-center text-center mb-8 select-none max-w-full">
+              <h2
+                className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white truncate max-w-full px-2"
+                title={canvas.name}
+              >
+                {canvas.name}<span className="text-[#DE6B80]">.</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium tracking-wide">
+                Enter canvas password to unlock
+              </p>
+            </div>
+
+            {/* Minimal Password Field with integrated Arrow Button */}
+            <form onSubmit={handleSubmit} className="w-full flex flex-col items-center">
+              <div
+                className={`relative flex items-center w-full border-b-2 transition-colors duration-200 pb-2 ${
+                  error
+                    ? 'border-[#E05D55]'
+                    : 'border-slate-300 dark:border-slate-700 focus-within:border-[#DE6B80] dark:focus-within:border-[#DE6B80]'
+                }`}
+              >
+                <input
+                  ref={passwordInputRef}
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder="Canvas password"
+                  disabled={isSubmitting}
+                  autoFocus
+                  className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-base font-medium focus:outline-none pr-3 disabled:opacity-50 tracking-wider"
+                  required
+                />
+
+                <button
+                  type="submit"
+                  disabled={!password || isSubmitting}
+                  className="p-1 text-slate-400 hover:text-[#DE6B80] dark:hover:text-[#DE6B80] focus:text-[#DE6B80] disabled:opacity-20 disabled:hover:text-slate-400 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed group"
+                  title="Unlock canvas"
+                  aria-label="Unlock canvas"
+                >
+                  <ArrowRight
+                    className={`w-5 h-5 transition-all duration-200 ${
+                      password ? 'text-[#DE6B80] group-hover:translate-x-1' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Aesthetic Error Area */}
+              <div className="h-8 flex items-center justify-center mt-3 text-center">
+                <AnimatePresence>
+                  {error && (
+                    <motion.span
+                      key="error"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-xs font-medium text-[#E05D55] dark:text-[#f27e89]"
+                    >
+                      {error}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

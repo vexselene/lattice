@@ -32,6 +32,13 @@ export const CanvasGrid: React.FC = () => {
   const [duplicateTarget, setDuplicateTarget] = useState<CanvasSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CanvasSummary | null>(null);
 
+  // Keyboard navigation & selection states
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const pendingFocusIdRef = useRef<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -91,6 +98,190 @@ export const CanvasGrid: React.FC = () => {
     return canvases.filter((c) => c.name.toLowerCase().includes(q));
   }, [canvases, searchQuery]);
 
+  // Handle focus when a new canvas is created
+  const handleCanvasCreated = (created: CanvasSummary) => {
+    setSelectedId(created.id);
+    pendingFocusIdRef.current = created.id;
+  };
+
+  // Focus newly created canvas once rendered
+  useEffect(() => {
+    if (!pendingFocusIdRef.current) return;
+    const id = pendingFocusIdRef.current;
+
+    const tryFocus = () => {
+      const cardEl = cardRefs.current.get(id);
+      if (cardEl) {
+        cardEl.focus();
+        cardEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        pendingFocusIdRef.current = null;
+        return true;
+      }
+      return false;
+    };
+
+    if (!tryFocus()) {
+      const timer = setTimeout(tryFocus, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [filteredCanvases]);
+
+  // Helper to get dynamic columns count
+  const getColumnCount = (): number => {
+    if (!gridRef.current) return 1;
+    const children = Array.from(gridRef.current.children) as HTMLElement[];
+    if (children.length <= 1) return 1;
+    const firstTop = children[0].offsetTop;
+    let count = 0;
+    for (const child of children) {
+      if (child.offsetTop === firstTop) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    return Math.max(1, count);
+  };
+
+  // Focus item by index
+  const focusItemByIndex = (index: number, items: string[]) => {
+    const id = items[index];
+    if (!id) return;
+    setSelectedId(id);
+    if (id === '__create__') {
+      createButtonRef.current?.focus();
+      createButtonRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      const el = cardRefs.current.get(id);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  };
+
+  // Global keyboard navigation for canvas grid
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if (
+        createModalOpen ||
+        unlockingCanvas !== null ||
+        activeCanvasId !== null ||
+        activeMenuCanvasId !== null ||
+        renameTarget !== null ||
+        duplicateTarget !== null ||
+        deleteTarget !== null
+      ) {
+        return;
+      }
+
+      const items = ['__create__', ...filteredCanvases.map((c) => c.id)];
+      const totalItems = items.length;
+      if (totalItems === 0) return;
+
+      const currentIndex = selectedId !== null ? items.indexOf(selectedId) : -1;
+
+      switch (e.key) {
+        case 'ArrowRight': {
+          e.preventDefault();
+          if (currentIndex < 0) {
+            focusItemByIndex(0, items);
+          } else if (currentIndex < totalItems - 1) {
+            focusItemByIndex(currentIndex + 1, items);
+          }
+          break;
+        }
+        case 'ArrowLeft': {
+          e.preventDefault();
+          if (currentIndex < 0) {
+            focusItemByIndex(0, items);
+          } else if (currentIndex > 0) {
+            focusItemByIndex(currentIndex - 1, items);
+          }
+          break;
+        }
+        case 'ArrowDown': {
+          e.preventDefault();
+          const cols = getColumnCount();
+          if (currentIndex < 0) {
+            focusItemByIndex(0, items);
+          } else if (currentIndex + cols < totalItems) {
+            focusItemByIndex(currentIndex + cols, items);
+          } else {
+            const lastRowStartIndex = Math.floor((totalItems - 1) / cols) * cols;
+            if (currentIndex < lastRowStartIndex) {
+              focusItemByIndex(totalItems - 1, items);
+            }
+          }
+          break;
+        }
+        case 'ArrowUp': {
+          e.preventDefault();
+          const cols = getColumnCount();
+          if (currentIndex < 0) {
+            focusItemByIndex(0, items);
+          } else if (currentIndex >= cols) {
+            focusItemByIndex(currentIndex - cols, items);
+          }
+          break;
+        }
+        case 'Home': {
+          e.preventDefault();
+          focusItemByIndex(0, items);
+          break;
+        }
+        case 'End': {
+          e.preventDefault();
+          focusItemByIndex(totalItems - 1, items);
+          break;
+        }
+        case 'Enter':
+        case ' ': {
+          if (selectedId === '__create__') {
+            if (document.activeElement !== createButtonRef.current) {
+              e.preventDefault();
+              setCreateModalOpen(true);
+            }
+          } else if (selectedId) {
+            const target = filteredCanvases.find((c) => c.id === selectedId);
+            if (target) {
+              e.preventDefault();
+              setUnlockingCanvas(target);
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    selectedId,
+    filteredCanvases,
+    createModalOpen,
+    unlockingCanvas,
+    activeCanvasId,
+    activeMenuCanvasId,
+    renameTarget,
+    duplicateTarget,
+    deleteTarget,
+  ]);
+
   return (
     <div
       aria-hidden={activeCanvasId !== null}
@@ -117,23 +308,47 @@ export const CanvasGrid: React.FC = () => {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 relative"
       >
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
           {isLoadingCanvases && canvases.length === 0 ? (
             <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-600 text-sm">
               Loading canvases…
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <div ref={gridRef} className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6">
               {/* Tile 1: Create New Canvas (re-styled) */}
               <button
-                onClick={() => setCreateModalOpen(true)}
-                className="aspect-square flex flex-col items-center justify-center p-6 neubrutalist-create-tile cursor-pointer group"
+                ref={createButtonRef}
+                tabIndex={0}
+                role="button"
+                aria-label="Create new canvas"
+                onClick={() => {
+                  setSelectedId('__create__');
+                  setCreateModalOpen(true);
+                }}
+                onFocus={() => setSelectedId('__create__')}
+                className={`aspect-square flex flex-col items-center justify-center p-6 neubrutalist-create-tile cursor-pointer group outline-none transition-all duration-200 ${
+                  selectedId === '__create__'
+                    ? 'is-selected ring-2 ring-[#DE6B80] ring-offset-2 ring-offset-[#F8FAFC] dark:ring-offset-[#0B0F19]'
+                    : 'focus-visible:ring-2 focus-visible:ring-[#DE6B80] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8FAFC] dark:focus-visible:ring-offset-[#0B0F19]'
+                }`}
                 title="Create new canvas"
               >
-                <div className="w-[54px] h-[54px] rounded-full bg-white dark:bg-slate-800 border-2 border-[#475569] dark:border-slate-500 group-hover:border-[#1a1a1a] dark:group-hover:border-white group-hover:scale-105 transition-all mb-3 flex items-center justify-center shadow-sm">
-                  <Plus className="w-6 h-6 text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white transition-colors" />
+                <div className={`w-[54px] h-[54px] rounded-full bg-white dark:bg-slate-800 border-2 transition-all mb-3 flex items-center justify-center shadow-sm ${
+                  selectedId === '__create__'
+                    ? 'border-[#1a1a1a] dark:border-white scale-105'
+                    : 'border-[#475569] dark:border-slate-500 group-hover:border-[#1a1a1a] dark:group-hover:border-white group-hover:scale-105'
+                }`}>
+                  <Plus className={`w-6 h-6 transition-colors ${
+                    selectedId === '__create__'
+                      ? 'text-[#1a1a1a] dark:text-white'
+                      : 'text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white'
+                  }`} />
                 </div>
-                <span className="text-sm font-medium text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white transition-colors">
+                <span className={`text-sm font-medium transition-colors ${
+                  selectedId === '__create__'
+                    ? 'text-[#1a1a1a] dark:text-white'
+                    : 'text-[#475569] dark:text-slate-400 group-hover:text-[#1a1a1a] dark:group-hover:text-white'
+                }`}>
                   Create new canvas
                 </span>
               </button>
@@ -149,18 +364,30 @@ export const CanvasGrid: React.FC = () => {
                 const isActive = activeCanvasId === canvas.id;
                 const isClosing = closingCanvasId === canvas.id;
                 const isEnlarged = isOpening || isActive;
+                const isSelected = selectedId === canvas.id;
 
                 return (
                   <motion.div
                     key={canvas.id}
+                    ref={(el) => {
+                      if (el) cardRefs.current.set(canvas.id, el);
+                      else cardRefs.current.delete(canvas.id);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${canvas.name} canvas`}
                     onClick={() => {
+                      setSelectedId(canvas.id);
                       if (activeCanvasId !== null || unlockingCanvas !== null) return;
                       setUnlockingCanvas(canvas);
                     }}
+                    onFocus={() => setSelectedId(canvas.id)}
                     initial={false}
                     animate={
                       isEnlarged
                         ? { scale: 1.08, y: -6, zIndex: 20 }
+                        : isSelected && !isClosing
+                        ? { scale: 1.03, y: -4, zIndex: 10 }
                         : { scale: 1, y: 0, zIndex: 1 }
                     }
                     whileHover={
@@ -174,7 +401,11 @@ export const CanvasGrid: React.FC = () => {
                         : undefined
                     }
                     transition={{ duration: 0.25, ease: 'easeOut' }}
-                    className={`aspect-square relative flex items-center justify-center neubrutalist-card ${variant.cardClassName} cursor-pointer group`}
+                    className={`aspect-square relative flex items-center justify-center neubrutalist-card ${variant.cardClassName} cursor-pointer group outline-none transition-all duration-200 ${
+                      isSelected
+                        ? 'is-selected ring-2 ring-[#DE6B80] ring-offset-2 ring-offset-[#F8FAFC] dark:ring-offset-[#0B0F19]'
+                        : 'focus-visible:ring-2 focus-visible:ring-[#DE6B80] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8FAFC] dark:focus-visible:ring-offset-[#0B0F19]'
+                    }`}
                   >
                     {/* Pattern Layer */}
                     <div
@@ -314,6 +545,7 @@ export const CanvasGrid: React.FC = () => {
       <CreateCanvasModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
+        onCreated={handleCanvasCreated}
       />
 
       <RenameCanvasModal

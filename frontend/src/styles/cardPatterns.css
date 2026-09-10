@@ -20,11 +20,13 @@
   box-shadow: 8px 8px 0 var(--card-accent, #cbd5e1);
 }
 
-.neubrutalist-card:hover {
+.neubrutalist-card:hover,
+.neubrutalist-card.is-selected {
   box-shadow: 12px 12px 0 var(--card-accent, #1a1a1a);
 }
 
-.dark .neubrutalist-card:hover {
+.dark .neubrutalist-card:hover,
+.dark .neubrutalist-card.is-selected {
   box-shadow: 12px 12px 0 var(--card-accent, #cbd5e1);
 }
 
@@ -52,13 +54,15 @@
   border-color: #475569;
 }
 
-.neubrutalist-create-tile:hover {
+.neubrutalist-create-tile:hover,
+.neubrutalist-create-tile.is-selected {
   border-color: #64748b;
   transform: translateY(-4px) scale(1.025);
   box-shadow: 8px 8px 0 #e2e8f0;
 }
 
-.dark .neubrutalist-create-tile:hover {
+.dark .neubrutalist-create-tile:hover,
+.dark .neubrutalist-create-tile.is-selected {
   border-color: #94a3b8;
   box-shadow: 8px 8px 0 #1e293b;
 }

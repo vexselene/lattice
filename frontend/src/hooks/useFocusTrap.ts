@@ -12,15 +12,24 @@ export function useFocusTrap(
   containerRef: React.RefObject<HTMLElement | null>,
   isActive: boolean = true,
   onClose?: () => void,
-  initialFocusRef?: React.RefObject<HTMLElement | null>
+  initialFocusRef?: React.RefObject<HTMLElement | null>,
+  shouldRestoreFocus: boolean | (() => boolean) = true
 ) {
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const initialFocusRefRef = useRef(initialFocusRef);
+  initialFocusRefRef.current = initialFocusRef;
+  const shouldRestoreFocusRef = useRef(shouldRestoreFocus);
+  shouldRestoreFocusRef.current = shouldRestoreFocus;
 
   useEffect(() => {
     if (!isActive) return;
 
-    // Store element that was focused before opening
-    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+    // Store element that was focused before opening (only if not already stored)
+    if (!previousActiveElementRef.current) {
+      previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+    }
 
     const container = containerRef.current;
     if (!container) return;
@@ -39,9 +48,10 @@ export function useFocusTrap(
     const focusInitial = () => {
       if (!container || container.contains(document.activeElement)) return;
 
+      const initRef = initialFocusRefRef.current;
       // Priority 1: explicitly designated initialFocusRef
-      if (initialFocusRef?.current && container.contains(initialFocusRef.current)) {
-        initialFocusRef.current.focus();
+      if (initRef?.current && container.contains(initRef.current)) {
+        initRef.current.focus();
         return;
       }
 
@@ -67,10 +77,10 @@ export function useFocusTrap(
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (onClose) {
+        if (onCloseRef.current) {
           e.preventDefault();
           e.stopPropagation();
-          onClose();
+          onCloseRef.current();
         }
         return;
       }
@@ -109,9 +119,10 @@ export function useFocusTrap(
 
     const handleFocusIn = (e: FocusEvent) => {
       if (container && !container.contains(e.target as Node)) {
-        if (initialFocusRef?.current && container.contains(initialFocusRef.current)) {
+        const initRef = initialFocusRefRef.current;
+        if (initRef?.current && container.contains(initRef.current)) {
           e.preventDefault();
-          initialFocusRef.current.focus();
+          initRef.current.focus();
           return;
         }
 
@@ -138,14 +149,21 @@ export function useFocusTrap(
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('focusin', handleFocusIn, true);
 
-      const prev = previousActiveElementRef.current;
-      if (prev && typeof prev.focus === 'function') {
-        setTimeout(() => {
-          prev.focus();
-        }, 10);
+      const restore = shouldRestoreFocusRef.current;
+      const shouldRestore =
+        typeof restore === 'function' ? restore() : restore;
+
+      if (shouldRestore) {
+        const prev = previousActiveElementRef.current;
+        if (prev && typeof prev.focus === 'function') {
+          setTimeout(() => {
+            prev.focus();
+          }, 10);
+        }
       }
+      previousActiveElementRef.current = null;
     };
-  }, [isActive, containerRef, onClose, initialFocusRef]);
+  }, [isActive, containerRef]);
 }
 
 export default useFocusTrap;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Pencil, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { formatErrorMessage } from '../../api/canvas';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -24,7 +25,7 @@ export const RenameCanvasModal: React.FC<RenameCanvasModalProps> = ({
 
   const { renameCanvas } = useCanvasStore();
 
-  useFocusTrap(modalRef, isOpen, onClose, inputRef);
+  useFocusTrap(modalRef, isOpen && canvas !== null, onClose, inputRef);
 
   useEffect(() => {
     if (isOpen && canvas) {
@@ -37,11 +38,11 @@ export const RenameCanvasModal: React.FC<RenameCanvasModalProps> = ({
     }
   }, [isOpen, canvas]);
 
-  if (!isOpen || !canvas) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+
+    if (!canvas) return;
 
     const trimmed = name.trim();
     if (!trimmed) {
@@ -66,79 +67,116 @@ export const RenameCanvasModal: React.FC<RenameCanvasModalProps> = ({
   };
 
   return (
-    <div ref={modalRef} className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="relative flex flex-col gap-4 p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-sm w-full">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md transition-colors"
-          title="Cancel"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <AnimatePresence>
+      {isOpen && canvas && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 selection:bg-[#DE6B80]/20 selection:text-[#DE6B80]">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+          />
 
-        {/* Icon */}
-        <div className="flex justify-center mb-1">
-          <div className="p-3.5 bg-[#4F46E5]/10 rounded-full">
-            <Pencil className="w-7 h-7 text-[#4F46E5]" />
-          </div>
-        </div>
-
-        {/* Title */}
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-            Rename Canvas
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Enter a new name for &ldquo;{canvas.name}&rdquo;
-          </p>
-        </div>
-
-        {/* Error Display */}
-        {localError && (
-          <p className="text-red-500 dark:text-red-400 text-xs text-center font-medium bg-red-50 dark:bg-red-950/40 py-2 px-3 rounded border border-red-200 dark:border-red-900">
-            {localError}
-          </p>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-1">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Canvas Name
-            </label>
-            <input
-              ref={inputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Canvas name"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4F46E5] text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50"
-              required
-            />
-          </div>
-
-          <div className="flex gap-2 mt-1">
+          {/* Neubrutalist Dialog Container */}
+          <motion.div
+            ref={modalRef}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="relative z-10 w-full max-w-md bg-white dark:bg-[#0E131F] border-2 border-slate-900 dark:border-slate-700 rounded-2xl shadow-[6px_6px_0_#DE6B80] dark:shadow-[6px_6px_0_#DE6B80] p-6 sm:p-8 flex flex-col gap-6 text-slate-900 dark:text-slate-100"
+          >
+            {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
-              className="flex-1 py-2 px-4 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md font-medium text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title="Close"
+              aria-label="Close"
             >
-              Cancel
+              <X className="w-5 h-5" />
             </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !name.trim()}
-              className="flex-1 py-2 px-4 bg-[#4F46E5] hover:bg-[#4338ca] text-white rounded-md font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#4F46E5]"
-            >
-              {isSubmitting ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+
+            {/* Header */}
+            <div className="flex flex-col select-none pr-8">
+              <div className="flex items-center gap-2.5 mb-1.5">
+                <div className="w-8 h-8 rounded-lg bg-[#DE6B80]/15 border border-[#DE6B80]/30 flex items-center justify-center text-[#DE6B80] shrink-0">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Rename Canvas<span className="text-[#DE6B80]">.</span>
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                Update name for &ldquo;{canvas.name}&rdquo;
+              </p>
+            </div>
+
+            {/* Error Message */}
+            <AnimatePresence>
+              {localError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="text-xs font-medium text-[#E05D55] dark:text-[#f27e89] bg-[#E05D55]/10 border border-[#E05D55]/20 py-2 px-3 rounded-lg text-center"
+                >
+                  {localError}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              {/* Canvas Name */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-mono tracking-wider uppercase text-slate-400 dark:text-slate-500">
+                  Canvas Name
+                </label>
+                <div className="border-b-2 border-slate-200 dark:border-slate-800 focus-within:border-[#DE6B80] dark:focus-within:border-[#DE6B80] transition-colors pb-1">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (localError) setLocalError(null);
+                    }}
+                    placeholder="Canvas name"
+                    disabled={isSubmitting}
+                    className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 text-sm font-medium focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !name.trim()}
+                  className="px-5 py-2.5 rounded-lg bg-[#DE6B80] hover:bg-[#c9586d] active:scale-95 text-white text-xs font-bold tracking-wide shadow-sm transition-all duration-150 disabled:opacity-40 disabled:hover:bg-[#DE6B80] disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {isSubmitting ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 

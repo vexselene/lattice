@@ -22,7 +22,7 @@ export interface CanvasState {
   error: string | null;
 
   fetchCanvases: () => Promise<void>;
-  createCanvas: (name: string, password: string) => Promise<void>;
+  createCanvas: (name: string, password: string) => Promise<CanvasSummary>;
   openCanvas: (id: string, password: string) => Promise<void>;
   closeCanvas: () => Promise<void>;
   setUnlockingCanvas: (canvas: CanvasSummary | null) => void;
@@ -60,8 +60,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   createCanvas: async (name: string, password: string) => {
     set({ error: null });
     try {
-      await apiCreateCanvas(name, password);
+      const summary = await apiCreateCanvas(name, password);
       await get().fetchCanvases();
+      return summary;
     } catch (err) {
       set({ error: formatErrorMessage(err) });
       throw err;

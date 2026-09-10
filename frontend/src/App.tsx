@@ -172,7 +172,7 @@ function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col items-center justify-center"
+            className="fixed inset-0 z-50 bg-[#FAF8F9] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center selection:bg-[#DE6B80]/20 selection:text-[#DE6B80] transition-colors"
           >
             {/* Top-left back arrow button */}
             <button
@@ -184,7 +184,7 @@ function App() {
               }}
               disabled={isSubmittingUnlock}
               tabIndex={-1}
-              className="fixed top-5 left-5 sm:top-6 sm:left-8 z-50 p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="fixed top-5 left-5 sm:top-6 sm:left-8 z-50 p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DE6B80] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="Back to grid"
               aria-label="Back to grid"
             >
