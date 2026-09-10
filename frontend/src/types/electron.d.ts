@@ -44,6 +44,7 @@ export interface LatticeApi {
   cmdCloseCanvas: () => void | Promise<void>;
   cmdRenameCanvas: (id: string, newName: string) => void | Promise<void>;
   cmdDuplicateCanvas: (id: string, originalPassword: string, newPassword?: string | null) => Promise<CanvasSummary>;
+  cmdChangeCanvasPassword: (id: string, oldPassword: string, newPassword: string) => Promise<void>;
   cmdDeleteCanvas: (id: string, password: string) => Promise<void>;
   cmdExportCanvas: (id: string, destinationPath: string) => void | Promise<void>;
   cmdImportCanvas: (sourcePath: string) => CanvasSummary | Promise<CanvasSummary>;

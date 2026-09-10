@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Lock, ArrowUp, Menu, Pencil, Copy, Download, Trash2 } from 'lucide-react';
+import { Plus, Lock, ArrowUp, Menu, Pencil, Copy, KeyRound, Download, Trash2 } from 'lucide-react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasSummary } from '../../api/canvas';
 import { getCardVariant, formatCanvasDate } from '../../lib/cardVariants';
@@ -8,6 +8,7 @@ import GridTopBar from './GridTopBar';
 import CreateCanvasModal from './CreateCanvasModal';
 import RenameCanvasModal from './RenameCanvasModal';
 import DuplicateCanvasModal from './DuplicateCanvasModal';
+import ChangeCanvasPasswordModal from './ChangeCanvasPasswordModal';
 import DeleteCanvasModal from './DeleteCanvasModal';
 
 export const CanvasGrid: React.FC = () => {
@@ -30,6 +31,7 @@ export const CanvasGrid: React.FC = () => {
   const [activeMenuCanvasId, setActiveMenuCanvasId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<CanvasSummary | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<CanvasSummary | null>(null);
+  const [changePasswordTarget, setChangePasswordTarget] = useState<CanvasSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CanvasSummary | null>(null);
 
   // Keyboard navigation & selection states
@@ -180,6 +182,7 @@ export const CanvasGrid: React.FC = () => {
         activeMenuCanvasId !== null ||
         renameTarget !== null ||
         duplicateTarget !== null ||
+        changePasswordTarget !== null ||
         deleteTarget !== null
       ) {
         return;
@@ -279,6 +282,7 @@ export const CanvasGrid: React.FC = () => {
     activeMenuCanvasId,
     renameTarget,
     duplicateTarget,
+    changePasswordTarget,
     deleteTarget,
   ]);
 
@@ -470,6 +474,17 @@ export const CanvasGrid: React.FC = () => {
                             Duplicate
                           </button>
                           <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuCanvasId(null);
+                              setChangePasswordTarget(canvas);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                            Change Password
+                          </button>
+                          <button
                             onClick={async (e) => {
                               e.stopPropagation();
                               setActiveMenuCanvasId(null);
@@ -557,6 +572,11 @@ export const CanvasGrid: React.FC = () => {
         canvas={duplicateTarget}
         isOpen={duplicateTarget !== null}
         onClose={() => setDuplicateTarget(null)}
+      />
+      <ChangeCanvasPasswordModal
+        canvas={changePasswordTarget}
+        isOpen={changePasswordTarget !== null}
+        onClose={() => setChangePasswordTarget(null)}
       />
       <DeleteCanvasModal
         canvas={deleteTarget}

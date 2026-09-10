@@ -6,6 +6,7 @@ import {
   closeCanvas as apiCloseCanvas,
   renameCanvas as apiRenameCanvas,
   duplicateCanvas as apiDuplicateCanvas,
+  changeCanvasPassword as apiChangeCanvasPassword,
   deleteCanvas as apiDeleteCanvas,
   exportCanvas as apiExportCanvas,
   importCanvas as apiImportCanvas,
@@ -29,6 +30,7 @@ export interface CanvasState {
   setClosingCanvasId: (id: string | null) => void;
   renameCanvas: (id: string, newName: string) => Promise<void>;
   duplicateCanvas: (id: string, originalPassword: string, newPassword?: string) => Promise<void>;
+  changeCanvasPassword: (id: string, oldPassword: string, newPassword: string) => Promise<void>;
   deleteCanvas: (id: string, password: string) => Promise<void>;
   exportCanvas: (id: string) => Promise<void>;
   importCanvas: () => Promise<void>;
@@ -111,6 +113,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ error: null });
     try {
       await apiDuplicateCanvas(id, originalPassword, newPassword);
+      await get().fetchCanvases();
+    } catch (err) {
+      set({ error: formatErrorMessage(err) });
+      throw err;
+    }
+  },
+
+  changeCanvasPassword: async (id: string, oldPassword: string, newPassword: string) => {
+    set({ error: null });
+    try {
+      await apiChangeCanvasPassword(id, oldPassword, newPassword);
       await get().fetchCanvases();
     } catch (err) {
       set({ error: formatErrorMessage(err) });

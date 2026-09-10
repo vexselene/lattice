@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('api', {
   cmdRenameCanvas: (id, newName) => native.cmdRenameCanvas(id, newName),
   cmdDuplicateCanvas: (id, originalPassword, newPassword) =>
     native.cmdDuplicateCanvas(id, originalPassword, newPassword),
+  cmdChangeCanvasPassword: (id, oldPassword, newPassword) =>
+    native.cmdChangeCanvasPassword(id, oldPassword, newPassword),
   cmdDeleteCanvas: (id, password) => native.cmdDeleteCanvas(id, password),
   cmdExportCanvas: (id, destinationPath) => native.cmdExportCanvas(id, destinationPath),
   cmdImportCanvas: (sourcePath) => native.cmdImportCanvas(sourcePath),

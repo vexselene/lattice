@@ -161,13 +161,23 @@ pub async fn create_canvas_core(
         return Err(AuthError::Validation("Canvas name cannot be empty".into()));
     }
 
-    // Verify vault is unlocked
+    // Verify vault is unlocked and name does not already exist (case-insensitive, trimmed)
     {
         let state_guard = state
             .lock()
             .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-        if state_guard.vault_db.is_none() {
-            return Err(AuthError::NotUnlocked);
+        let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
+
+        let name_exists: bool = vault_conn
+            .query_row(
+                "SELECT 1 FROM canvases WHERE lower(trim(name)) = lower(?1)",
+                rusqlite::params![trimmed_name],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if name_exists {
+            return Err(AuthError::NameAlreadyExists);
         }
     }
 
@@ -373,6 +383,38 @@ pub fn rename_canvas_core(
         .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
     let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
 
+    // Check if canvas exists first
+    let current_name: String = vault_conn
+        .query_row(
+            "SELECT name FROM canvases WHERE id = ?1",
+            rusqlite::params![&id],
+            |r| r.get(0),
+        )
+        .map_err(|err| match err {
+            rusqlite::Error::QueryReturnedNoRows => {
+                AuthError::NotFound(format!("Canvas {} not found", id))
+            }
+            e => AuthError::Database(e.to_string()),
+        })?;
+
+    // Check collision against other canvases (excluding this canvas's own current row)
+    let name_collides: bool = vault_conn
+        .query_row(
+            "SELECT 1 FROM canvases WHERE lower(trim(name)) = lower(?1) AND id != ?2",
+            rusqlite::params![trimmed, &id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if name_collides {
+        return Err(AuthError::NameAlreadyExists);
+    }
+
+    // If new name is identical to current name, it succeeds
+    if trimmed == current_name {
+        return Ok(());
+    }
+
     let now = chrono::Utc::now().to_rfc3339();
     let rows_affected = vault_conn
         .execute(
@@ -386,6 +428,66 @@ pub fn rename_canvas_core(
     }
 
     Ok(())
+}
+
+/// Disambiguates canvas name collisions in the vault registry.
+///
+/// If `base_name` does not collide with any existing canvas name (case-insensitive, trimmed),
+/// returns `base_name.trim()`.
+/// If it collides:
+/// - If `base_name` already ends with `" (<suffix>)"`, strips that suffix first to determine the root name.
+/// - Tries `"<root> (<suffix>)"`.
+/// - If that also collides, tries `"<root> (<suffix> 2)"`, then `"<root> (<suffix> 3)"`, etc.,
+///   incrementing until unique.
+pub fn resolve_unique_name(
+    conn: &rusqlite::Connection,
+    base_name: &str,
+    suffix: &str,
+) -> Result<String, AuthError> {
+    let trimmed_base = base_name.trim();
+    if trimmed_base.is_empty() {
+        return Err(AuthError::Validation("Canvas name cannot be empty".into()));
+    }
+
+    let exists = |candidate: &str| -> Result<bool, AuthError> {
+        match conn.query_row(
+            "SELECT 1 FROM canvases WHERE lower(trim(name)) = lower(?1)",
+            rusqlite::params![candidate.trim()],
+            |_| Ok(true),
+        ) {
+            Ok(_) => Ok(true),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(AuthError::Database(e.to_string())),
+        }
+    };
+
+    // 1. If base_name does not collide, use it unchanged
+    if !exists(trimmed_base)? {
+        return Ok(trimmed_base.to_string());
+    }
+
+    // 2. If it collides, determine root name by stripping existing " (<suffix>)" if present
+    let suffix_pattern = format!(" ({})", suffix);
+    let root = trimmed_base
+        .strip_suffix(&suffix_pattern)
+        .unwrap_or(trimmed_base)
+        .trim();
+
+    // 3. First collision: "<root> (<suffix>)"
+    let first_candidate = format!("{} ({})", root, suffix);
+    if !exists(&first_candidate)? {
+        return Ok(first_candidate);
+    }
+
+    // 4. Subsequent collisions: "<root> (<suffix> 2)", "<root> (<suffix> 3)", ...
+    let mut counter = 2;
+    loop {
+        let candidate = format!("{} ({} {})", root, suffix, counter);
+        if !exists(&candidate)? {
+            return Ok(candidate);
+        }
+        counter += 1;
+    }
 }
 
 /// Duplicates an existing canvas.
@@ -408,13 +510,13 @@ pub async fn duplicate_canvas_core(
 
     let new_id = uuid::Uuid::new_v4().to_string();
 
-    let orig_name: String = {
+    let (_orig_name, copy_name) = {
         let state_guard = state
             .lock()
             .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
         let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
 
-        vault_conn
+        let name: String = vault_conn
             .query_row(
                 "SELECT name FROM canvases WHERE id = ?1",
                 rusqlite::params![&id],
@@ -425,15 +527,16 @@ pub async fn duplicate_canvas_core(
                     AuthError::NotFound(format!("Canvas {} not found", id))
                 }
                 e => AuthError::Database(e.to_string()),
-            })?
+            })?;
+
+        let unique_copy = resolve_unique_name(vault_conn, &format!("{} (copy)", name), "copy")?;
+        (name, unique_copy)
     };
 
     let orig_db = paths::canvas_db_path(&id)?;
     let orig_salt = paths::canvas_salt_path(&id)?;
     let new_db = paths::canvas_db_path(&new_id)?;
     let new_salt = paths::canvas_salt_path(&new_id)?;
-
-    let copy_name = format!("{} (copy)", orig_name);
 
     match new_password.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         None => {
@@ -709,6 +812,13 @@ pub fn import_canvas_core(
     let bundle_bytes = std::fs::read(&source_path).map_err(|e| AuthError::Io(e.to_string()))?;
     let (name, salt_bytes, db_bytes) = decode_bundle(&bundle_bytes)?;
 
+    let state_guard = state
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+    let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
+
+    let unique_name = resolve_unique_name(vault_conn, &name, "imported")?;
+
     let new_id = uuid::Uuid::new_v4().to_string();
     let new_salt_path = paths::canvas_salt_path(&new_id)?;
     let new_db_path = paths::canvas_db_path(&new_id)?;
@@ -728,28 +838,10 @@ pub fn import_canvas_core(
 
     let now = chrono::Utc::now().to_rfc3339();
     let file_name = format!("{}.db", new_id);
-    let summary = CanvasSummary {
-        id: new_id.clone(),
-        name: name.clone(),
-        created_at: now.clone(),
-        modified_at: now.clone(),
-    };
-
-    let state_guard = state
-        .lock()
-        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
-    let vault_conn = match state_guard.vault_db.as_ref() {
-        Some(conn) => conn,
-        None => {
-            let _ = std::fs::remove_file(&new_salt_path);
-            let _ = std::fs::remove_file(&new_db_path);
-            return Err(AuthError::NotUnlocked);
-        }
-    };
 
     let insert_res = vault_conn.execute(
         "INSERT INTO canvases (id, name, file_name, created_at, modified_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![&new_id, &name, &file_name, &now, &now],
+        rusqlite::params![&new_id, &unique_name, &file_name, &now, &now],
     );
 
     if let Err(e) = insert_res {
@@ -758,7 +850,159 @@ pub fn import_canvas_core(
         return Err(AuthError::Database(e.to_string()));
     }
 
-    Ok(summary)
+    Ok(CanvasSummary {
+        id: new_id,
+        name: unique_name,
+        created_at: now.clone(),
+        modified_at: now,
+    })
+}
+
+/// Changes the password of an existing canvas in-place.
+///
+/// Rekeys the SQLCipher database with a new Argon2id-derived key and fresh salt,
+/// writing the fresh salt atomically via a temporary file.
+/// Rejects if the canvas is currently active in `state.active_canvas`.
+pub async fn change_canvas_password_core(
+    state: &Mutex<AppState>,
+    id: String,
+    old_password: String,
+    new_password: String,
+) -> Result<(), AuthError> {
+    if old_password.trim().is_empty() {
+        return Err(AuthError::Validation("Current password cannot be empty".into()));
+    }
+    if new_password.trim().is_empty() {
+        return Err(AuthError::Validation("New password cannot be empty".into()));
+    }
+
+    // 1. Check preconditions and backoff rate-limit
+    let delay_to_sleep = {
+        let state_guard = state
+            .lock()
+            .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+
+        let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
+
+        // If active_canvas in AppState matches target id, reject
+        if state_guard.active_canvas.as_ref().map(|c| &c.id) == Some(&id) {
+            return Err(AuthError::CanvasActiveCannotChangePassword);
+        }
+
+        let canvas_exists: bool = vault_conn
+            .query_row(
+                "SELECT 1 FROM canvases WHERE id = ?1",
+                rusqlite::params![&id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !canvas_exists {
+            return Err(AuthError::NotFound(format!("Canvas {} not found", id)));
+        }
+
+        match state_guard.check_attempt() {
+            Err(BackoffError::RateLimited { wait_remaining }) => {
+                return Err(AuthError::RateLimited {
+                    wait_remaining_ms: wait_remaining.as_millis() as u64,
+                });
+            }
+            Ok(delay) if delay > Duration::ZERO => Some(delay),
+            _ => None,
+        }
+    };
+
+    if let Some(delay) = delay_to_sleep {
+        tokio::time::sleep(delay).await;
+    }
+
+    // 2. Read canvas salt
+    let salt_file = paths::canvas_salt_path(&id)?;
+    let salt_bytes = std::fs::read(&salt_file).map_err(|e| AuthError::Io(e.to_string()))?;
+    if salt_bytes.len() != crypto::SALT_SIZE {
+        return Err(AuthError::Io(format!(
+            "Invalid canvas salt file length: expected {}, got {}",
+            crypto::SALT_SIZE,
+            salt_bytes.len()
+        )));
+    }
+    let mut old_salt = [0u8; crypto::SALT_SIZE];
+    old_salt.copy_from_slice(&salt_bytes);
+
+    // 3. Offload Argon2 KDF, old password verification, and PRAGMA rekey to worker thread
+    let db_file = paths::canvas_db_path(&id)?;
+    let old_pwd_owned = old_password;
+    let new_pwd_owned = new_password;
+
+    let rekey_res = tokio::task::spawn_blocking(move || {
+        let old_key = crypto::derive_master_key(&old_pwd_owned, &old_salt);
+        let new_salt = crypto::generate_salt();
+        let new_key = crypto::derive_master_key(&new_pwd_owned, &new_salt);
+
+        let conn = rusqlite::Connection::open(&db_file)?;
+        let hex_old_key: String = old_key.iter().map(|b| format!("{:02x}", b)).collect();
+        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_old_key))?;
+        schema::configure_connection(&conn)?;
+
+        // Verify old password works
+        let _verify: i64 =
+            conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
+
+        // Rekey SQLCipher database
+        let hex_new_key: String = new_key.iter().map(|b| format!("{:02x}", b)).collect();
+        conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_new_key))?;
+
+        // Verify rekey was successful
+        let _verify2: i64 =
+            conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0))?;
+
+        Ok(new_salt)
+    })
+    .await
+    .map_err(|e| AuthError::Io(format!("Worker thread join error: {}", e)))?;
+
+    // 4. Check outcome and record rate-limit attempt
+    let fresh_salt = {
+        let mut state_guard = state
+            .lock()
+            .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+
+        match rekey_res {
+            Ok(salt) => {
+                state_guard.record_attempt(true);
+                salt
+            }
+            Err(err) => {
+                if is_sqlcipher_key_error(&err) {
+                    state_guard.record_attempt(false);
+                    return Err(AuthError::InvalidPassword);
+                } else {
+                    return Err(AuthError::Database(err.to_string()));
+                }
+            }
+        }
+    };
+
+    // 5. Write fresh salt to temporary file first, then atomically rename over real salt file
+    let temp_salt_file = paths::canvas_salt_path(&id)?.with_extension("tmp");
+    std::fs::write(&temp_salt_file, fresh_salt).map_err(|e| AuthError::Io(e.to_string()))?;
+    std::fs::rename(&temp_salt_file, &salt_file).map_err(|e| AuthError::Io(e.to_string()))?;
+
+    // 6. Update modified_at in the vault registry
+    let now = chrono::Utc::now().to_rfc3339();
+    let state_guard = state
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+    let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
+
+    vault_conn
+        .execute(
+            "UPDATE canvases SET modified_at = ?1 WHERE id = ?2",
+            rusqlite::params![&now, &id],
+        )
+        .map_err(|e| AuthError::Database(e.to_string()))?;
+
+    Ok(())
 }
 
 // =========================================================================
@@ -805,6 +1049,18 @@ pub async fn cmd_duplicate_canvas(
 ) -> napi::Result<CanvasSummary> {
     let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
     duplicate_canvas_core(&crate::state::GLOBAL_APP_STATE, id, original_password, new_password)
+        .await
+        .map_err(napi::Error::from)
+}
+
+#[napi]
+pub async fn cmd_change_canvas_password(
+    id: String,
+    old_password: String,
+    new_password: String,
+) -> napi::Result<()> {
+    let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
+    change_canvas_password_core(&crate::state::GLOBAL_APP_STATE, id, old_password, new_password)
         .await
         .map_err(napi::Error::from)
 }
@@ -1200,7 +1456,7 @@ mod tests {
             .expect("import canvas");
 
         assert_ne!(imported.id, orig.id);
-        assert_eq!(imported.name, "Export Canvas");
+        assert_eq!(imported.name, "Export Canvas (imported)");
         assert!(paths::canvas_db_path(&imported.id).unwrap().exists());
         assert!(paths::canvas_salt_path(&imported.id).unwrap().exists());
 
@@ -1220,5 +1476,216 @@ mod tests {
             ).unwrap();
             assert_eq!(addr, "user@lattice.local");
         }
+    }
+
+    #[tokio::test]
+    async fn test_import_collision_disambiguation() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("import_collision");
+        let state = env.setup_unlocked_state();
+
+        let orig = create_canvas_core(&state, "Notes".into(), "pwd1".into()).await.unwrap();
+
+        let bundle_dest = env.path.join("notes.lattice");
+        export_canvas_core(&state, orig.id.clone(), bundle_dest.to_str().unwrap().into()).unwrap();
+
+        // 1st collision -> "Notes (imported)"
+        let imp1 = import_canvas_core(&state, bundle_dest.to_str().unwrap().into()).unwrap();
+        assert_eq!(imp1.name, "Notes (imported)");
+
+        // 2nd collision -> "Notes (imported 2)"
+        let imp2 = import_canvas_core(&state, bundle_dest.to_str().unwrap().into()).unwrap();
+        assert_eq!(imp2.name, "Notes (imported 2)");
+
+        // 3rd collision -> "Notes (imported 3)"
+        let imp3 = import_canvas_core(&state, bundle_dest.to_str().unwrap().into()).unwrap();
+        assert_eq!(imp3.name, "Notes (imported 3)");
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_collision_disambiguation() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("duplicate_collision");
+        let state = env.setup_unlocked_state();
+
+        let orig = create_canvas_core(&state, "Document".into(), "pwd1".into()).await.unwrap();
+
+        // 1st duplication -> "Document (copy)"
+        let copy1 = duplicate_canvas_core(&state, orig.id.clone(), "pwd1".into(), None).await.unwrap();
+        assert_eq!(copy1.name, "Document (copy)");
+
+        // 2nd duplication of original -> "Document (copy 2)"
+        let copy2 = duplicate_canvas_core(&state, orig.id.clone(), "pwd1".into(), None).await.unwrap();
+        assert_eq!(copy2.name, "Document (copy 2)");
+
+        // 3rd duplication of original -> "Document (copy 3)"
+        let copy3 = duplicate_canvas_core(&state, orig.id.clone(), "pwd1".into(), None).await.unwrap();
+        assert_eq!(copy3.name, "Document (copy 3)");
+    }
+
+    #[tokio::test]
+    async fn test_create_canvas_duplicate_name_rejected() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("create_duplicate_name");
+        let state = env.setup_unlocked_state();
+
+        create_canvas_core(&state, "Alpha Plan".into(), "pwd".into()).await.unwrap();
+
+        // Exact match
+        let res1 = create_canvas_core(&state, "Alpha Plan".into(), "pwd".into()).await;
+        assert!(matches!(res1, Err(AuthError::NameAlreadyExists)));
+
+        // Case-insensitive match
+        let res2 = create_canvas_core(&state, "alpha plan".into(), "pwd".into()).await;
+        assert!(matches!(res2, Err(AuthError::NameAlreadyExists)));
+
+        // Trimmed match
+        let res3 = create_canvas_core(&state, "  ALPHA PLAN  ".into(), "pwd".into()).await;
+        assert!(matches!(res3, Err(AuthError::NameAlreadyExists)));
+
+        // Distinct name succeeds
+        let res4 = create_canvas_core(&state, "Beta Plan".into(), "pwd".into()).await;
+        assert!(res4.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_rename_canvas_duplicate_name_rejected_and_self_rename() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("rename_duplicate_name");
+        let state = env.setup_unlocked_state();
+
+        let _c1 = create_canvas_core(&state, "First".into(), "pwd".into()).await.unwrap();
+        let c2 = create_canvas_core(&state, "Second".into(), "pwd".into()).await.unwrap();
+
+        // Renaming c2 to c1's name (case-insensitive, trimmed) should fail
+        let res1 = rename_canvas_core(&state, c2.id.clone(), "first".into());
+        assert!(matches!(res1, Err(AuthError::NameAlreadyExists)));
+
+        let res2 = rename_canvas_core(&state, c2.id.clone(), "  First  ".into());
+        assert!(matches!(res2, Err(AuthError::NameAlreadyExists)));
+
+        // Self-rename (same name or different casing) should succeed
+        assert!(rename_canvas_core(&state, c2.id.clone(), "Second".into()).is_ok());
+        assert!(rename_canvas_core(&state, c2.id.clone(), "SECOND".into()).is_ok());
+
+        // Renaming to unused name should succeed
+        assert!(rename_canvas_core(&state, c2.id.clone(), "Third".into()).is_ok());
+        let list = list_canvases_core(&state).unwrap();
+        assert!(list.iter().any(|c| c.name == "Third"));
+    }
+
+    #[tokio::test]
+    async fn test_change_canvas_password_success() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("change_pwd_success");
+        let state = env.setup_unlocked_state();
+
+        let c = create_canvas_core(&state, "Vault Canvas".into(), "old-pwd-123".into()).await.unwrap();
+
+        // Populate some data to verify it survives rekey
+        open_canvas_core(&state, c.id.clone(), "old-pwd-123".into()).await.unwrap();
+        {
+            let s = state.lock().unwrap();
+            let active = s.active_canvas.as_ref().unwrap();
+            active.db.execute(
+                "INSERT INTO emails (id, address, provider) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["email-change-pwd", "security@lattice.local", "Proton"],
+            ).unwrap();
+        }
+        close_canvas_core(&state).unwrap();
+
+        let old_modified = c.modified_at.clone();
+
+        // Change password in-place
+        change_canvas_password_core(&state, c.id.clone(), "old-pwd-123".into(), "new-pwd-456".into())
+            .await
+            .expect("password change succeeds");
+
+        // Verify canvas remains closed
+        assert!(state.lock().unwrap().active_canvas.is_none());
+
+        // Verify modified_at was updated in registry
+        let list = list_canvases_core(&state).unwrap();
+        let target = list.iter().find(|x| x.id == c.id).unwrap();
+        assert!(target.modified_at >= old_modified);
+
+        // Old password must fail
+        let old_open_res = open_canvas_core(&state, c.id.clone(), "old-pwd-123".into()).await;
+        assert!(matches!(old_open_res, Err(AuthError::InvalidPassword)));
+
+        // New password must succeed and data must be intact
+        open_canvas_core(&state, c.id.clone(), "new-pwd-456".into()).await.unwrap();
+        {
+            let s = state.lock().unwrap();
+            let active = s.active_canvas.as_ref().unwrap();
+            let addr: String = active.db.query_row(
+                "SELECT address FROM emails WHERE id = ?1",
+                rusqlite::params!["email-change-pwd"],
+                |r| r.get(0),
+            ).unwrap();
+            assert_eq!(addr, "security@lattice.local");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_change_canvas_password_wrong_old_password_leaves_db_untouched() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("change_pwd_wrong_old");
+        let state = env.setup_unlocked_state();
+
+        let c = create_canvas_core(&state, "Secure Canvas".into(), "correct-old".into()).await.unwrap();
+
+        let salt_before = std::fs::read(paths::canvas_salt_path(&c.id).unwrap()).unwrap();
+        let db_before = std::fs::read(paths::canvas_db_path(&c.id).unwrap()).unwrap();
+
+        // Attempt with wrong old password
+        let res = change_canvas_password_core(
+            &state,
+            c.id.clone(),
+            "wrong-old".into(),
+            "new-password".into(),
+        )
+        .await;
+
+        assert!(matches!(res, Err(AuthError::InvalidPassword)));
+
+        // Salt and DB files should be untouched
+        let salt_after = std::fs::read(paths::canvas_salt_path(&c.id).unwrap()).unwrap();
+        let db_after = std::fs::read(paths::canvas_db_path(&c.id).unwrap()).unwrap();
+        assert_eq!(salt_before, salt_after);
+        assert_eq!(db_before, db_after);
+
+        // New password does NOT work
+        let new_open = open_canvas_core(&state, c.id.clone(), "new-password".into()).await;
+        assert!(matches!(new_open, Err(AuthError::InvalidPassword)));
+
+        // Original password still works
+        assert!(open_canvas_core(&state, c.id.clone(), "correct-old".into()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_change_canvas_password_canvas_is_active_rejected() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("change_pwd_active");
+        let state = env.setup_unlocked_state();
+
+        let c = create_canvas_core(&state, "Active Canvas".into(), "pass123".into()).await.unwrap();
+        open_canvas_core(&state, c.id.clone(), "pass123".into()).await.unwrap();
+
+        // Canvas is currently active in state
+        assert!(state.lock().unwrap().active_canvas.is_some());
+
+        let res = change_canvas_password_core(
+            &state,
+            c.id.clone(),
+            "pass123".into(),
+            "newpass".into(),
+        )
+        .await;
+
+        assert!(matches!(res, Err(AuthError::CanvasActiveCannotChangePassword)));
+
+        // Canvas is still active
+        assert!(state.lock().unwrap().active_canvas.is_some());
     }
 }

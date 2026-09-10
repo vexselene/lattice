@@ -40,6 +40,12 @@ export function formatErrorMessage(err: any): string {
   if (norm.error === 'InvalidPassword') {
     return 'Invalid password';
   }
+  if (norm.error === 'NameAlreadyExists') {
+    return 'A canvas with this name already exists';
+  }
+  if (norm.error === 'CanvasActiveCannotChangePassword') {
+    return 'Close the canvas before changing its password';
+  }
   if (norm.error === 'CanvasAlreadyActive') {
     return 'A canvas is already open';
   }
@@ -133,6 +139,20 @@ export const duplicateCanvas = async (
       return normalizeCanvasSummary(summary);
     }
     throw new Error('API not available');
+  } catch (err) {
+    throw normalizeError(err);
+  }
+};
+
+export const changeCanvasPassword = async (
+  id: string,
+  oldPassword: string,
+  newPassword: string,
+): Promise<void> => {
+  try {
+    if (window.api?.cmdChangeCanvasPassword) {
+      await window.api.cmdChangeCanvasPassword(id, oldPassword, newPassword);
+    }
   } catch (err) {
     throw normalizeError(err);
   }

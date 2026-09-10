@@ -35,6 +35,12 @@ pub enum AuthError {
 
     #[error("Invalid bundle: {0}")]
     InvalidBundle(String),
+
+    #[error("A canvas with this name already exists")]
+    NameAlreadyExists,
+
+    #[error("Cannot change password while canvas is active")]
+    CanvasActiveCannotChangePassword,
 }
 
 impl From<AuthError> for napi::Error {
