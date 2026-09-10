@@ -1,6 +1,9 @@
 {
   "name": "lattice",
   "version": "0.1.0",
+  "description": "Lattice — Visual Identity & Account Graph",
+  "author": "Lattice",
+  "homepage": "https://github.com/lattice/lattice",
   "private": true,
   "main": "electron/main.js",
   "napi": {
@@ -14,11 +17,16 @@
     "build:native": "napi build --platform --cargo-cwd src-tauri --dts index.d.ts --js index.js native",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
-    "start": "electron --no-sandbox ."
+    "start": "electron --no-sandbox .",
+    "package": "electron-builder",
+    "package:linux": "electron-builder --linux",
+    "package:win": "electron-builder --win",
+    "package:mac": "electron-builder --mac"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",
     "@tauri-apps/cli": "^2.2.0",
-    "electron": "^30.5.1"
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
   }
 }

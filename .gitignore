@@ -37,7 +37,10 @@ src-tauri/gen/
 .clinic/
 out/
 release/
-build/
+build/*
+!build/icon.png
+!build/icon.ico
+!build/icon.icns
 *.pfx
 *.cer
 
