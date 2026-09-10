@@ -25,10 +25,6 @@ describe('exportRenderer dual-pill', () => {
     expect(svg).toContain('johndoe');
     expect(svg).toContain('#10B981');
 
-    const match = svg.match(/<g class="nodes">([\s\S]*?)<\/g>\s*<\/svg>/);
-    console.log('--- DUAL PILL SVG NODE MARKUP ---');
-    console.log(match ? match[1].trim() : svg);
-    console.log('--- END DUAL PILL SVG NODE MARKUP ---');
   });
 
   it('renders a 16:9 blank canvas with minimum dimensions when no nodes are included', () => {

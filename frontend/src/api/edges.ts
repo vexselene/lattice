@@ -1,20 +1,6 @@
 import { Edge, EdgeRelation, NodeType } from '../types/graph';
 
-function normalizeError(err: any): any {
-  if (err && typeof err === 'object') {
-    if ('error' in err) return err;
-    if (typeof err.message === 'string') {
-      try {
-        const parsed = JSON.parse(err.message);
-        if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-          Object.assign(err, parsed);
-          return err;
-        }
-      } catch {}
-    }
-  }
-  return err;
-}
+import { normalizeError } from './errors';
 
 export const getEdges = async (node_type?: NodeType, node_id?: string): Promise<Edge[]> => {
   try {

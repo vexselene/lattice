@@ -1,4 +1,5 @@
 import { NodeType, GraphData } from '../types/graph';
+import { normalizeError } from './errors';
 
 export function formatErrorMessage(err: any): string {
   if (!err) return 'Unknown error';
@@ -19,22 +20,6 @@ export function formatErrorMessage(err: any): string {
     }
   }
   return err.error || err.message || 'Save failed';
-}
-
-function normalizeError(err: any): any {
-  if (err && typeof err === 'object') {
-    if ('error' in err) return err;
-    if (typeof err.message === 'string') {
-      try {
-        const parsed = JSON.parse(err.message);
-        if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-          Object.assign(err, parsed);
-          return err;
-        }
-      } catch {}
-    }
-  }
-  return err;
 }
 
 export const getNodes = async (type: NodeType, skip: number = 0, limit: number = 100): Promise<any[]> => {
@@ -62,31 +47,25 @@ export const getNode = async (type: NodeType, id: string): Promise<any> => {
 };
 
 export const createNode = async (type: NodeType, nodeData: any): Promise<any> => {
-  console.log(`[cmd_create_node] INVOKE type=${type} payload=`, JSON.stringify(nodeData));
   try {
     if (window.api?.cmdCreateNode) {
       const node = await window.api.cmdCreateNode(type, nodeData);
-      console.log(`[cmd_create_node] SUCCESS type=${type} res=`, node);
       return node.data;
     }
     throw new Error('window.api.cmdCreateNode is not available');
   } catch (err) {
-    console.error(`[cmd_create_node] FAILED type=${type} error=`, err);
     throw normalizeError(err);
   }
 };
 
 export const updateNode = async (type: NodeType, id: string, nodeData: any): Promise<any> => {
-  console.log(`[cmd_update_node] INVOKE type=${type} id=${id} payload=`, JSON.stringify(nodeData));
   try {
     if (window.api?.cmdUpdateNode) {
       const node = await window.api.cmdUpdateNode(type, id, nodeData);
-      console.log(`[cmd_update_node] SUCCESS type=${type} id=${id} res=`, node);
       return node.data;
     }
     throw new Error('window.api.cmdUpdateNode is not available');
   } catch (err) {
-    console.error(`[cmd_update_node] FAILED type=${type} id=${id} error=`, err);
     throw normalizeError(err);
   }
 };

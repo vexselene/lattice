@@ -100,14 +100,7 @@ pub async fn auth_unlock_core(
     let db_file_owned = db_file.to_path_buf();
 
     let (key, conn_res) = tokio::task::spawn_blocking(move || {
-        let start = std::time::Instant::now();
         let key = crypto::derive_master_key(&password_owned, &salt);
-        let duration = start.elapsed();
-        eprintln!(
-            "[Argon2 KDF] derive_master_key took {} ms (first_run={})",
-            duration.as_millis(),
-            is_first_run
-        );
 
         let conn_res = (|| -> Result<rusqlite::Connection, rusqlite::Error> {
             let conn = schema::open_sqlcipher_connection(&db_file_owned, &key)?;
@@ -161,8 +154,6 @@ pub fn init_app(data_dir: Option<String>) {
     }
 }
 
-static UNLOCK_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
 #[napi]
 pub async fn cmd_auth_setup(password: String) -> napi::Result<()> {
     cmd_auth_unlock(password).await
@@ -172,26 +163,10 @@ pub async fn cmd_auth_setup(password: String) -> napi::Result<()> {
 pub async fn cmd_auth_unlock(password: String) -> napi::Result<()> {
     let _gate_lock = crate::state::GLOBAL_UNLOCK_GATE.lock().await;
 
-    let n = UNLOCK_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let enter_ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    eprintln!("[unlock #{}] ENTER at {}", n, enter_ts);
-
     let db_file = paths::vault_db_path().map_err(napi::Error::from)?;
     let salt_file = paths::vault_salt_path().map_err(napi::Error::from)?;
     let res = auth_unlock_core(&db_file, &salt_file, &crate::state::GLOBAL_APP_STATE, &password).await;
 
-    let exit_ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let res_label = match &res {
-        Ok(_) => "ok".to_string(),
-        Err(e) => format!("err({:?})", e),
-    };
-    eprintln!("[unlock #{}] EXIT at {}, result={}", n, exit_ts, res_label);
     res.map_err(napi::Error::from)
 }
 
@@ -511,11 +486,7 @@ mod tests {
             let g = &gate;
             async move {
                 let _lock = g.lock().await;
-                let enter_ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-                eprintln!("[gated-unlock #{}] ENTER at {}", id, enter_ts);
                 let r = auth_unlock_core(&db, &salt, s, pwd).await;
-                let exit_ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-                eprintln!("[gated-unlock #{}] EXIT at {}, result={:?}", id, exit_ts, r);
                 r
             }
         };
