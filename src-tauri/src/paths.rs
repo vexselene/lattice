@@ -19,7 +19,7 @@ pub fn app_data_dir() -> Result<PathBuf, AuthError> {
         d.clone()
     } else {
         // Fallback default: ~/.local/share/com.lattice.app
-        let home = std::env::var("HOME").map_err(|e| AuthError::Io(e.to_string()))?;
+        let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).map_err(|e| AuthError::Io(e.to_string()))?;
         PathBuf::from(home).join(".local/share/com.lattice.app")
     };
 

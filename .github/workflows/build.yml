@@ -36,25 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libssl-dev pkg-config
 
-      - name: Install system dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install openssl@3
-          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
-          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
 
-      - name: Install system dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          vcpkg install openssl:x64-windows-static-md
-          vcpkg list
-          $vcpkgRoot = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
-          $opensslDir = "$vcpkgRoot\installed\x64-windows-static-md"
-          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
-          echo "OPENSSL_ROOT_DIR=$opensslDir" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslDir\lib" >> $env:GITHUB_ENV
 
       - name: Install root dependencies
         run: npm ci
