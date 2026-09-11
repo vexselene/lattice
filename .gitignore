@@ -43,6 +43,7 @@ build/*
 !build/icon.icns
 !build/icon.svg
 !build/icons/
+!build/afterPack.js
 *.pfx
 *.cer
 

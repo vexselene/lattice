@@ -26,6 +26,8 @@ asar: true
 asarUnpack:
   - "**/*.node"
 
+afterPack: build/afterPack.js
+
 linux:
   target:
     - target: AppImage
