@@ -19,10 +19,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -67,15 +67,15 @@ jobs:
 
       - name: Package application (Linux)
         if: runner.os == 'Linux'
-        run: npm run package:linux
+        run: npm run package:linux -- --publish never
 
       - name: Package application (macOS)
         if: runner.os == 'macOS'
-        run: npm run package:mac
+        run: npm run package:mac -- --publish never
 
       - name: Package application (Windows)
         if: runner.os == 'Windows'
-        run: npm run package:win
+        run: npm run package:win -- --publish never
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
@@ -98,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all installer artifacts
         uses: actions/download-artifact@v4
