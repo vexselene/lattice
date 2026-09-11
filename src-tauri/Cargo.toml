@@ -2,7 +2,7 @@
 name = "lattice"
 version = "0.1.0"
 description = "Lattice — Visual Identity & Account Graph"
-authors = ["Lattice"]
+authors = ["Vineet Kumar <vexselene@gmail.com>"]
 edition = "2021"
 
 [lib]

@@ -41,6 +41,8 @@ build/*
 !build/icon.png
 !build/icon.ico
 !build/icon.icns
+!build/icon.svg
+!build/icons/
 *.pfx
 *.cer
 

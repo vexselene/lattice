@@ -35,8 +35,10 @@ linux:
       arch:
         - x64
   category: Utility
-  icon: build/icon.png
-  maintainer: Lattice
+  icon: build/icon.svg
+  desktop:
+    StartupWMClass: lattice
+  maintainer: Vineet Kumar <vexselene@gmail.com>
   synopsis: Visual Identity & Account Graph
   description: Lattice — Encrypted visual identity and account graph management application.
 

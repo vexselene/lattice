@@ -1,8 +1,21 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, globalShortcut, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const url = require('url');
+
+// Platform-specific naming and ID configuration
+if (process.platform === 'linux') {
+  // Matches lattice.desktop StartupWMClass for X11/Wayland window managers
+  app.setName('lattice');
+} else {
+  app.setName('Lattice');
+}
+
+if (process.platform === 'win32') {
+  // Ensures Windows taskbar grouping and notifications link to the application
+  app.setAppUserModelId('com.lattice.app');
+}
 
 // Single-instance lock enforcement
 const gotTheLock = app.requestSingleInstanceLock();
@@ -83,9 +96,13 @@ if (!gotTheLock) {
   });
 
   function createWindow() {
+    
+    
+
     mainWindow = new BrowserWindow({
       width: 1200,
       height: 800,
+      icon: nativeImage.createFromPath(path.join(__dirname, 'icon.png')),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,

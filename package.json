@@ -1,8 +1,9 @@
 {
   "name": "lattice",
+  "productName": "Lattice",
   "version": "0.1.0",
   "description": "Lattice — Visual Identity & Account Graph",
-  "author": "Lattice",
+  "author": "Vineet Kumar <vexselene@gmail.com>",
   "homepage": "https://github.com/lattice/lattice",
   "private": true,
   "main": "electron/main.js",
