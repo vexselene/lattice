@@ -71,6 +71,7 @@ const GraphInner = () => {
     bumpCollapseAll,
     setSelectedNode,
     expandedNodeId,
+    setExpandedNodeId,
     selectedNodeIds,
     setSelectedNodeIds,
     selectedEdgeIds,
@@ -85,6 +86,11 @@ const GraphInner = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
   const { getLayoutedElements } = useGraphLayout();
+
+  const [resyncTrigger, setResyncTrigger] = useState(0);
+  const resyncNodes = useCallback(() => {
+    setResyncTrigger(prev => prev + 1);
+  }, []);
 
   const [connectMenu, setConnectMenu] = useState<{ x: number, y: number, sourceId: string, handleType: 'source' | 'target' } | null>(null);
   const [exportModalScope, setExportModalScope] = useState<'full' | 'selected' | null>(null);
@@ -347,7 +353,7 @@ const GraphInner = () => {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, tagFilters, serviceFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains]);
+  }, [storeNodes, storeEdges, setNodes, setEdges, searchQuery, typeFilters, tagFilters, serviceFilters, activeChain, selectedEdgeIds, expandedNodeId, proximityTarget, draggingNode, activeMultiMode, selectedNodeIds, multiChains, resyncTrigger]);
 
 
   const onNodesChangeWithSave = useCallback((changes: any) => {
@@ -358,15 +364,19 @@ const GraphInner = () => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-    updateNodePositions(layoutedNodes.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })));
-    layoutedNodes.forEach(n => {
-      updateNodePosition(n.type || 'email', n.id, n.position.x, n.position.y)
-        .catch(err => console.error('[GraphCanvas] Failed to update node position on layout:', err));
-    });
-  }, [nodes, edges, getLayoutedElements, setNodes, setEdges, updateNodePositions]);
+    if (isEditMode) {
+      updateNodePositions(layoutedNodes.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })));
+      layoutedNodes.forEach(n => {
+        updateNodePosition(n.type || 'email', n.id, n.position.x, n.position.y)
+          .catch(err => console.error('[GraphCanvas] Failed to update node position on layout:', err));
+      });
+    }
+  }, [nodes, edges, getLayoutedElements, setNodes, setEdges, updateNodePositions, isEditMode]);
 
   
   const onNodeDrag = useCallback((_: any, node: FlowNode) => {
+    if (!isEditMode) return;
+
     const hasEdges = storeEdges.some(e => e.source_id === node.id || e.target_id === node.id);
     if (hasEdges) {
       if (proximityTarget !== null) setProximityTarget(null);
@@ -396,9 +406,13 @@ const GraphInner = () => {
     if (draggingNode !== node.id) {
       setDraggingNode(node.id);
     }
-  }, [nodes, proximityTarget, draggingNode, storeEdges]);
+  }, [nodes, proximityTarget, draggingNode, storeEdges, isEditMode]);
 
   const onNodeDragStop = useCallback((_: any, node: FlowNode, draggedNodes?: FlowNode[]) => {
+    if (!isEditMode) {
+      return;
+    }
+
     const nodesToUpdate = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
     
     // Immediately update in-memory store so re-renders won't snap back to stale positions
@@ -436,6 +450,45 @@ const GraphInner = () => {
     setDraggingNode(null);
   }, [proximityTarget, storeNodes, nodes, addEdge, isEditMode, updateNodePositions]);
 
+  const prevIsEditModeRef = useRef(isEditMode);
+
+  useEffect(() => {
+    const wasEditMode = prevIsEditModeRef.current;
+    prevIsEditModeRef.current = isEditMode;
+
+    if (!wasEditMode && isEditMode) {
+      // Switched from view mode to edit mode: batch commit all diverged nodes
+      const currentStoreNodes = useGraphStore.getState().nodes;
+      const updates: Array<{ id: string; x: number; y: number; type: string }> = [];
+
+      nodes.forEach((flowNode) => {
+        const storeNode = currentStoreNodes.find((sn) => sn.data.id === flowNode.id);
+        if (storeNode) {
+          const storeX = storeNode.data.position_x ?? 0;
+          const storeY = storeNode.data.position_y ?? 0;
+          const flowX = flowNode.position?.x ?? 0;
+          const flowY = flowNode.position?.y ?? 0;
+          if (Math.abs(flowX - storeX) > 0.001 || Math.abs(flowY - storeY) > 0.001) {
+            updates.push({
+              id: flowNode.id,
+              x: flowX,
+              y: flowY,
+              type: flowNode.type || storeNode.type || 'email',
+            });
+          }
+        }
+      });
+
+      if (updates.length > 0) {
+        updateNodePositions(updates.map(({ id, x, y }) => ({ id, x, y })));
+        updates.forEach(({ type, id, x, y }) => {
+          updateNodePosition(type, id, x, y)
+            .catch((err) => console.error('[GraphCanvas] Failed to persist node position on mode toggle commit:', err));
+        });
+      }
+    }
+  }, [isEditMode, nodes, updateNodePositions]);
+
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -449,7 +502,30 @@ const GraphInner = () => {
     return () => window.removeEventListener('cancel-node-click', handleCancelNodeClick);
   }, []);
 
+  // Canvas lifecycle: flush leftover state on load (mount) and flush on close/lock (unmount)
+  useEffect(() => {
+    setActiveChain(null);
+    setSelectedNode(null);
+    setExpandedNodeId(null);
+    setSelectedNodeIds(new Set());
+    setSelectedEdgeIds(new Set());
+    setActiveMultiMode('none');
+
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      useGraphStore.getState().resetGraph();
+      useUIStore.getState().resetCanvasUI();
+    };
+  }, [setActiveChain, setSelectedNode, setExpandedNodeId, setSelectedNodeIds, setSelectedEdgeIds, setActiveMultiMode]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: FlowNode) => {
+    if (!isEditMode) {
+      resyncNodes();
+    }
+
     setSelectedEdgeIds(new Set()); // clear edge selection when clicking node
 
     if (event.ctrlKey || event.metaKey || activeMultiMode !== 'none') {
@@ -485,7 +561,7 @@ const GraphInner = () => {
       setActiveChain({ nodeIds: neighborNodes, edgeIds: matchingEdges });
       useGraphStore.getState().setExpandedNodeId(null);
     }, GRAPH_STYLE.timing.clickDelayMs);
-  }, [storeEdges, setActiveChain, activeMultiMode]);
+  }, [storeEdges, setActiveChain, activeMultiMode, isEditMode, resyncNodes]);
 
   const onNodeDoubleClick = useCallback(() => {
     if (clickTimeoutRef.current) {
@@ -508,6 +584,10 @@ const GraphInner = () => {
   }, []);
 
   const onPaneClick = useCallback(() => {
+    if (!isEditMode) {
+      resyncNodes();
+    }
+
     // If an edge was clicked within the last 500ms, ignore pane clicks.
     // This prevents DOM-replacement phantom clicks from deselecting the edge during a double-click gesture.
     if (Date.now() - ((window as any).__lastEdgeClick || 0) < 500) {
@@ -533,9 +613,13 @@ const GraphInner = () => {
       setSelectedNodeIds(new Set());
       setSelectedEdgeIds(new Set());
     }
-  }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll, setSelectedEdgeIds]);
+  }, [activeMultiMode, setActiveChain, setSelectedNode, bumpCollapseAll, setSelectedEdgeIds, isEditMode, resyncNodes]);
 
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: FlowEdge) => {
+    if (!isEditMode) {
+      resyncNodes();
+    }
+
     event.stopPropagation();
     
     useGraphStore.getState().setOpenMenuEdgeId(null);
@@ -555,7 +639,7 @@ const GraphInner = () => {
     setSelectedNodeIds(new Set());
     setActiveChain(null);
     setSelectedNode(null);
-  }, [setSelectedEdgeIds, setSelectedNodeIds, setActiveChain, setSelectedNode]);
+  }, [setSelectedEdgeIds, setSelectedNodeIds, setActiveChain, setSelectedNode, isEditMode, resyncNodes]);
 
   const onConnect = useCallback((params: Connection) => {
     if (!isEditMode) return;
@@ -761,6 +845,7 @@ const GraphInner = () => {
         onSelectionChange={onSelectionChange}
         fitView
         fitViewOptions={{ padding: 0.35, maxZoom: 1 }}
+        zoomOnDoubleClick={false}
         colorMode={theme}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color={theme === 'dark' ? '#1e293b' : '#e2e8f0'} className="transition-colors duration-300" />

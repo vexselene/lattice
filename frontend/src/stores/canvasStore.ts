@@ -13,6 +13,8 @@ import {
   formatErrorMessage,
 } from '../api/canvas';
 import type { CanvasSummary } from '../api/canvas';
+import { useGraphStore } from './graphStore';
+import { useUIStore } from './uiStore';
 
 export interface CanvasState {
   canvases: CanvasSummary[];
@@ -73,6 +75,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   openCanvas: async (id: string, password: string) => {
     set({ error: null });
+    useGraphStore.getState().resetGraph();
+    useUIStore.getState().resetCanvasUI();
     try {
       await apiOpenCanvas(id, password);
       set({ activeCanvasId: id, closingCanvasId: null, error: null });
@@ -87,6 +91,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     try {
       await apiCloseCanvas();
       set({ activeCanvasId: null, closingCanvasId: currentId, error: null });
+      useGraphStore.getState().resetGraph();
+      useUIStore.getState().resetCanvasUI();
       setTimeout(() => {
         if (get().closingCanvasId === currentId) {
           set({ closingCanvasId: null });
@@ -171,6 +177,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setError: (error: string | null) => set({ error }),
 
   resetCanvasState: () => {
+    useGraphStore.getState().resetGraph();
+    useUIStore.getState().resetCanvasUI();
     set({
       canvases: [],
       unlockingCanvas: null,

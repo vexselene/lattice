@@ -18,6 +18,7 @@ interface UIState {
   toggleTypeFilter: (filter: NodeType) => void;
   toggleTheme: () => void;
   toggleEditMode: () => void;
+  resetCanvasUI: () => void;
 }
 
 const getSystemTheme = (): 'dark' | 'light' => {
@@ -57,6 +58,13 @@ export const useUIStore = create<UIState>()(
       })),
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       toggleEditMode: () => set((state) => ({ isEditMode: !state.isEditMode })),
+      resetCanvasUI: () => set({
+        searchQuery: '',
+        typeFilters: [],
+        tagFilters: [],
+        serviceFilters: [],
+        isEditMode: false,
+      }),
     }),
     {
       name: 'ui-storage',

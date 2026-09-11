@@ -41,6 +41,7 @@ interface GraphState {
   removeTag: (nodeId: string, tag: string) => void;
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
   updateNodePositions: (updates: Array<{ id: string; x: number; y: number }>) => void;
+  resetGraph: () => void;
 }
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
@@ -193,7 +194,17 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   fetchGraph: async () => {
-    set({ isLoading: true, error: null });
+    set({
+      isLoading: true,
+      error: null,
+      selectedNode: null,
+      activeChain: null,
+      expandedNodeId: null,
+      selectedNodeIds: new Set<string>(),
+      selectedEdgeIds: new Set<string>(),
+      activeMultiMode: 'none',
+      openMenuEdgeId: null,
+    });
     try {
       const [data, servicesData] = await Promise.all([
         getGraph(),
@@ -209,6 +220,26 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       set({ error: err.message || 'Failed to fetch graph', isLoading: false });
     }
   },
+
+  resetGraph: () => set({
+    nodes: [],
+    edges: [],
+    services: [],
+    selectedNode: null,
+    activeChain: null,
+    expandedNodeId: null,
+    selectedNodeIds: new Set<string>(),
+    selectedEdgeIds: new Set<string>(),
+    activeMultiMode: 'none',
+    isExporting: false,
+    exportScope: 'full',
+    exportMode: 'isolated',
+    exportKeepHighlightRings: false,
+    collapseAllSignal: 0,
+    isLoading: false,
+    error: null,
+    openMenuEdgeId: null,
+  }),
 
   setSelectedNode: (node) => set({ selectedNode: node }),
   

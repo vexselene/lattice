@@ -44,10 +44,19 @@ function App() {
     }
   }, [isUnlocked, fetchCanvases]);
 
-  // When a canvas is active, fetch its graph data
+  // When a canvas is active, fetch its graph data fresh; when closed, flush state
   useEffect(() => {
     if (isUnlocked && activeCanvasId) {
+      useGraphStore.getState().resetGraph();
+      useUIStore.getState().resetCanvasUI();
       fetchGraph();
+    } else if (!activeCanvasId) {
+      useGraphStore.getState().resetGraph();
+      useUIStore.getState().resetCanvasUI();
+      setEdgeFormOpen(false);
+      setEdgeFormEdge(null);
+      setConfirmOpen(false);
+      setConfirmData(null);
     }
   }, [isUnlocked, activeCanvasId, fetchGraph]);
 
