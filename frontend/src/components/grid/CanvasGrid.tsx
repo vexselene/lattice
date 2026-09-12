@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Lock, ArrowUp, Menu, Pencil, Copy, KeyRound, Download, Trash2 } from 'lucide-react';
+import { Plus, Lock, ArrowUp, Menu, Pencil, Copy, KeyRound, Download, Trash2, GripVertical, X } from 'lucide-react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasSummary } from '../../api/canvas';
 import { getCardVariant, formatCanvasDate } from '../../lib/cardVariants';
@@ -12,6 +12,7 @@ import ChangeCanvasPasswordModal from './ChangeCanvasPasswordModal';
 import DeleteCanvasModal from './DeleteCanvasModal';
 
 export const CanvasGrid: React.FC = () => {
+  const draggedIdRef = useRef<string | null>(null);
   const {
     canvases,
     isLoadingCanvases,
@@ -20,13 +21,17 @@ export const CanvasGrid: React.FC = () => {
     setUnlockingCanvas,
     activeCanvasId,
     closingCanvasId,
+    sortMode,
+    reorderCanvases,
   } = useCanvasStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-
+  const [isArranging, setIsArranging] = useState(false);
+  const [orderedCanvases, setOrderedCanvases] = useState<CanvasSummary[]>([]);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
   // Per-card menu and modal states
   const [activeMenuCanvasId, setActiveMenuCanvasId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<CanvasSummary | null>(null);
@@ -94,11 +99,54 @@ export const CanvasGrid: React.FC = () => {
     };
   }, [activeMenuCanvasId]);
 
+  const sortedCanvases = useMemo(() => {
+    const list = [...canvases];
+    if (sortMode === 'recent') {
+      return list.sort((a, b) => {
+        const timeA =
+          new Date(a.modified_at || a.modifiedAt || a.created_at || a.createdAt || '').getTime() || 0;
+        const timeB =
+          new Date(b.modified_at || b.modifiedAt || b.created_at || b.createdAt || '').getTime() || 0;
+        return timeB - timeA;
+      });
+    }
+    // 'manual' mode: sorted by order_index ASC
+    return list.sort((a, b) => {
+      const ordA = a.order_index ?? a.orderIndex ?? 0;
+      const ordB = b.order_index ?? b.orderIndex ?? 0;
+      return ordA - ordB;
+    });
+  }, [canvases, sortMode]);
+
   const filteredCanvases = useMemo(() => {
-    if (!searchQuery.trim()) return canvases;
+    if (!searchQuery.trim()) return sortedCanvases;
     const q = searchQuery.toLowerCase().trim();
-    return canvases.filter((c) => c.name.toLowerCase().includes(q));
-  }, [canvases, searchQuery]);
+    return sortedCanvases.filter((c) => c.name.toLowerCase().includes(q));
+  }, [sortedCanvases, searchQuery]);
+
+  useEffect(() => {
+    setOrderedCanvases(filteredCanvases);
+  }, [filteredCanvases]);
+
+  useEffect(() => {
+    if (sortMode !== 'manual' && isArranging) {
+      setIsArranging(false);
+    }
+  }, [sortMode, isArranging]);
+
+  const handleToggleArranging = async () => {
+    if (isArranging) {
+      setIsArranging(false);
+      const orderedIds = orderedCanvases.map((c) => c.id);
+      try {
+        await reorderCanvases(orderedIds);
+      } catch (err) {
+        console.error('Failed to reorder canvases:', err);
+      }
+    } else {
+      setIsArranging(true);
+    }
+  };
 
   // Handle focus when a new canvas is created
   const handleCanvasCreated = (created: CanvasSummary) => {
@@ -176,6 +224,7 @@ export const CanvasGrid: React.FC = () => {
       }
 
       if (
+        isArranging ||
         createModalOpen ||
         unlockingCanvas !== null ||
         activeCanvasId !== null ||
@@ -188,7 +237,8 @@ export const CanvasGrid: React.FC = () => {
         return;
       }
 
-      const items = ['__create__', ...filteredCanvases.map((c) => c.id)];
+      const currentCanvases = sortMode === 'manual' ? orderedCanvases : filteredCanvases;
+      const items = ['__create__', ...currentCanvases.map((c) => c.id)];
       const totalItems = items.length;
       if (totalItems === 0) return;
 
@@ -276,6 +326,9 @@ export const CanvasGrid: React.FC = () => {
   }, [
     selectedId,
     filteredCanvases,
+    orderedCanvases,
+    sortMode,
+    isArranging,
     createModalOpen,
     unlockingCanvas,
     activeCanvasId,
@@ -285,6 +338,266 @@ export const CanvasGrid: React.FC = () => {
     changePasswordTarget,
     deleteTarget,
   ]);
+
+  const renderCanvasCard = (canvas: CanvasSummary, index: number) => {
+    const variant = getCardVariant(canvas.colorIndex);
+    const { date, time } = formatCanvasDate(
+      canvas.modified_at || canvas.modifiedAt || canvas.created_at || canvas.createdAt
+    );
+
+    const isOpening = unlockingCanvas?.id === canvas.id;
+    const isActive = activeCanvasId === canvas.id;
+    const isClosing = closingCanvasId === canvas.id;
+    const isEnlarged = isOpening || isActive;
+    const isSelected = selectedId === canvas.id;
+
+    let dropIndicatorClass = '';
+    if (dropIndex !== null) {
+      if (dropIndex === index) dropIndicatorClass = 'drop-left';
+      else if (dropIndex === orderedCanvases.length && index === orderedCanvases.length - 1) dropIndicatorClass = 'drop-right';
+    }
+
+    const cardProps = {
+      ref: (el: HTMLElement | null) => {
+        if (el) cardRefs.current.set(canvas.id, el);
+        else cardRefs.current.delete(canvas.id);
+      },
+      role: 'button' as const,
+      tabIndex: isArranging ? -1 : 0,
+      'aria-label': `Open ${canvas.name} canvas`,
+      onClick: () => {
+        if (isArranging) return;
+        setSelectedId(canvas.id);
+        if (activeCanvasId !== null || unlockingCanvas !== null) return;
+        setUnlockingCanvas(canvas);
+      },
+      onFocus: () => {
+        if (!isArranging) setSelectedId(canvas.id);
+      },
+      draggable: isArranging,
+      onDragStart: ((e: React.DragEvent<HTMLDivElement>) => {
+        if (!isArranging) return;
+        draggedIdRef.current = canvas.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.classList.add('opacity-40');
+      }) as any,
+      onDragEnter: ((e: React.DragEvent<HTMLDivElement>) => {
+        if (!isArranging || !draggedIdRef.current || draggedIdRef.current === canvas.id) return;
+        e.preventDefault();
+      }) as any,
+      onDragOver: ((e: React.DragEvent<HTMLDivElement>) => {
+        if (!isArranging || !draggedIdRef.current || draggedIdRef.current === canvas.id) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const isLeft = x < rect.width / 2;
+        
+        const newDropIndex = isLeft ? index : index + 1;
+        if (dropIndex !== newDropIndex) {
+          setDropIndex(newDropIndex);
+        }
+      }) as any,
+      onDragLeave: (() => {
+        // Only clear if we actually leave the card bounds to avoid flickering
+      }) as any,
+      onDrop: ((e: React.DragEvent<HTMLDivElement>) => {
+        if (!isArranging || !draggedIdRef.current) return;
+        e.preventDefault();
+        
+        if (draggedIdRef.current !== canvas.id && dropIndex !== null) {
+          const draggedIdx = orderedCanvases.findIndex(c => c.id === draggedIdRef.current);
+          
+          if (draggedIdx !== -1) {
+            const newOrder = [...orderedCanvases];
+            const [removed] = newOrder.splice(draggedIdx, 1);
+            
+            let actualInsertIdx = dropIndex;
+            if (draggedIdx < dropIndex) {
+              actualInsertIdx -= 1;
+            }
+            
+            newOrder.splice(actualInsertIdx, 0, removed);
+            setOrderedCanvases(newOrder);
+          }
+        }
+        draggedIdRef.current = null;
+        setDropIndex(null);
+      }) as any,
+      onDragEnd: ((e: React.DragEvent<HTMLDivElement>) => {
+        e.currentTarget.classList.remove('opacity-40');
+        draggedIdRef.current = null;
+        setDropIndex(null);
+      }) as any,
+      initial: false,
+      animate: isEnlarged
+        ? { scale: 1.08, y: -6, zIndex: 20 }
+        : isSelected && !isClosing && !isArranging
+        ? { scale: 1.03, y: -4, zIndex: 10 }
+        : { scale: 1, y: 0, zIndex: 1 },
+      whileHover:
+        !isEnlarged && !isClosing && !isArranging
+          ? { scale: 1.03, y: -4, transition: { duration: 0.2, ease: 'easeOut' as const } }
+          : undefined,
+      whileTap:
+        !isEnlarged && !isClosing && !isArranging
+          ? { scale: 0.99, transition: { duration: 0.1 } }
+          : undefined,
+      transition: { duration: 0.25, ease: 'easeOut' as const },
+      className: `aspect-square relative flex items-center justify-center neubrutalist-card ${dropIndicatorClass} ${variant.cardClassName} ${
+        isArranging
+          ? 'cursor-grab active:cursor-grabbing border-2 !border-dashed !border-slate-400 dark:!border-slate-500'
+          : 'cursor-pointer'
+      } group outline-none transition-all duration-200 ${
+        isSelected && !isArranging
+          ? 'is-selected ring-2 ring-[#DE6B80] ring-offset-2 ring-offset-[#F8FAFC] dark:ring-offset-[#0B0F19]'
+          : 'focus-visible:ring-2 focus-visible:ring-[#DE6B80] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8FAFC] dark:focus-visible:ring-offset-[#0B0F19]'
+      }`,
+    };
+
+    const cardInner = (
+      <>
+        {/* Pattern Layer */}
+        <div
+          className={`absolute inset-0 overflow-hidden pointer-events-none ${variant.patternClassName}`}
+          style={{ borderRadius: 'calc(16px - 3px)' }}
+          aria-hidden="true"
+        />
+
+        {/* Top-left: Date and Time */}
+        <div className="absolute top-5 left-6 z-10 flex flex-col text-left font-mono select-none pointer-events-none">
+          <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 opacity-[0.35]">
+            {date}
+          </span>
+          {time && (
+            <span className="text-[11px] font-medium text-slate-900 dark:text-slate-100 opacity-[0.20]">
+              {time}
+            </span>
+          )}
+        </div>
+
+        {/* Top-right: Three-dot context menu trigger (hidden while arranging) */}
+        {!isArranging && (
+          <div className="absolute top-4 right-4 z-20">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMenuCanvasId((prev) => (prev === canvas.id ? null : canvas.id));
+              }}
+              className="p-1.5 rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+              style={{ color: 'var(--card-accent)' }}
+              title="Canvas options"
+              aria-label="Canvas options"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Popover Dropdown */}
+            {activeMenuCanvasId === canvas.id && (
+              <div
+                ref={menuRef}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30"
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuCanvasId(null);
+                    setRenameTarget(canvas);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                  Rename
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuCanvasId(null);
+                    setDuplicateTarget(canvas);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                  Duplicate
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuCanvasId(null);
+                    setChangePasswordTarget(canvas);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                  Change Password
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setActiveMenuCanvasId(null);
+                    try {
+                      await exportCanvas(canvas.id);
+                    } catch (err) {
+                      console.error('Failed to export canvas:', err);
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-400" />
+                  Export
+                </button>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMenuCanvasId(null);
+                    setDeleteTarget(canvas);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Center Padlock Icon Badge */}
+        <div className="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-slate-800 border-2 border-[#1a1a1a] dark:border-slate-600 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.18)] dark:shadow-[0_0_14px_rgba(0,0,0,0.7)] group-hover:scale-105 group-hover:shadow-[0_0_18px_rgba(0,0,0,0.28)] dark:group-hover:shadow-[0_0_20px_rgba(0,0,0,0.85)] transition-all z-10 pointer-events-none">
+          <Lock className="w-5 h-5 text-[#1a1a1a] dark:text-slate-200" />
+        </div>
+
+        {/* Bottom-left Canvas Name */}
+        <div className={`absolute bottom-5 left-6 text-left z-10 pointer-events-none ${isArranging ? 'max-w-[70%]' : 'max-w-[85%]'}`}>
+          <span
+            className="block text-base font-bold text-slate-900 dark:text-slate-100 truncate"
+            title={canvas.name}
+          >
+            {canvas.name}
+          </span>
+        </div>
+
+        {/* Bottom-right: Grip icon while arranging */}
+        {isArranging && (
+          <div className="absolute bottom-5 right-5 z-20 pointer-events-none text-slate-500 dark:text-slate-400">
+            <GripVertical className="w-5 h-5" />
+          </div>
+        )}
+      </>
+    );
+
+    return (
+      <motion.div
+        key={canvas.id}
+        {...cardProps}
+      >
+        {cardInner}
+      </motion.div>
+    );
+  };
 
   return (
     <div
@@ -358,180 +671,10 @@ export const CanvasGrid: React.FC = () => {
               </button>
 
               {/* Remaining Tiles: Square cards for each canvas */}
-              {filteredCanvases.map((canvas, index) => {
-                const variant = getCardVariant(index);
-                const { date, time } = formatCanvasDate(
-                  canvas.modified_at || canvas.modifiedAt || canvas.created_at || canvas.createdAt
-                );
-
-                const isOpening = unlockingCanvas?.id === canvas.id;
-                const isActive = activeCanvasId === canvas.id;
-                const isClosing = closingCanvasId === canvas.id;
-                const isEnlarged = isOpening || isActive;
-                const isSelected = selectedId === canvas.id;
-
-                return (
-                  <motion.div
-                    key={canvas.id}
-                    ref={(el) => {
-                      if (el) cardRefs.current.set(canvas.id, el);
-                      else cardRefs.current.delete(canvas.id);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${canvas.name} canvas`}
-                    onClick={() => {
-                      setSelectedId(canvas.id);
-                      if (activeCanvasId !== null || unlockingCanvas !== null) return;
-                      setUnlockingCanvas(canvas);
-                    }}
-                    onFocus={() => setSelectedId(canvas.id)}
-                    initial={false}
-                    animate={
-                      isEnlarged
-                        ? { scale: 1.08, y: -6, zIndex: 20 }
-                        : isSelected && !isClosing
-                        ? { scale: 1.03, y: -4, zIndex: 10 }
-                        : { scale: 1, y: 0, zIndex: 1 }
-                    }
-                    whileHover={
-                      !isEnlarged && !isClosing
-                        ? { scale: 1.03, y: -4, transition: { duration: 0.2, ease: 'easeOut' } }
-                        : undefined
-                    }
-                    whileTap={
-                      !isEnlarged && !isClosing
-                        ? { scale: 0.99, transition: { duration: 0.1 } }
-                        : undefined
-                    }
-                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                    className={`aspect-square relative flex items-center justify-center neubrutalist-card ${variant.cardClassName} cursor-pointer group outline-none transition-all duration-200 ${
-                      isSelected
-                        ? 'is-selected ring-2 ring-[#DE6B80] ring-offset-2 ring-offset-[#F8FAFC] dark:ring-offset-[#0B0F19]'
-                        : 'focus-visible:ring-2 focus-visible:ring-[#DE6B80] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F8FAFC] dark:focus-visible:ring-offset-[#0B0F19]'
-                    }`}
-                  >
-                    {/* Pattern Layer */}
-                    <div
-                      className={`absolute inset-0 pointer-events-none ${variant.patternClassName}`}
-                      aria-hidden="true"
-                    />
-
-                    {/* Top-left: Date and Time */}
-                    <div className="absolute top-5 left-6 z-10 flex flex-col text-left font-mono select-none pointer-events-none">
-                      <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 opacity-[0.35]">
-                        {date}
-                      </span>
-                      {time && (
-                        <span className="text-[11px] font-medium text-slate-900 dark:text-slate-100 opacity-[0.20]">
-                          {time}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Top-right: Three-dot context menu trigger restyled with accent color */}
-                    <div className="absolute top-4 right-4 z-20">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuCanvasId((prev) => (prev === canvas.id ? null : canvas.id));
-                        }}
-                        className="p-1.5 rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                        style={{ color: 'var(--card-accent)' }}
-                        title="Canvas options"
-                        aria-label="Canvas options"
-                      >
-                        <Menu className="w-5 h-5" />
-                      </button>
-
-                      {/* Popover Dropdown */}
-                      {activeMenuCanvasId === canvas.id && (
-                        <div
-                          ref={menuRef}
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30"
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuCanvasId(null);
-                              setRenameTarget(canvas);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                            Rename
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuCanvasId(null);
-                              setDuplicateTarget(canvas);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Copy className="w-3.5 h-3.5 text-slate-400" />
-                            Duplicate
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuCanvasId(null);
-                              setChangePasswordTarget(canvas);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                          >
-                            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                            Change Password
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              setActiveMenuCanvasId(null);
-                              try {
-                                await exportCanvas(canvas.id);
-                              } catch (err) {
-                                console.error('Failed to export canvas:', err);
-                              }
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5 text-slate-400" />
-                            Export
-                          </button>
-                          <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuCanvasId(null);
-                              setDeleteTarget(canvas);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Center Padlock Icon Badge */}
-                    <div className="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-slate-800 border-2 border-[#1a1a1a] dark:border-slate-600 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.18)] dark:shadow-[0_0_14px_rgba(0,0,0,0.7)] group-hover:scale-105 group-hover:shadow-[0_0_18px_rgba(0,0,0,0.28)] dark:group-hover:shadow-[0_0_20px_rgba(0,0,0,0.85)] transition-all z-10">
-                      <Lock className="w-5 h-5 text-[#1a1a1a] dark:text-slate-200" />
-                    </div>
-
-                    {/* Bottom-left Canvas Name */}
-                    <div className="absolute bottom-5 left-6 text-left max-w-[85%] z-10">
-                      <span
-                        className="block text-base font-bold text-slate-900 dark:text-slate-100 truncate"
-                        title={canvas.name}
-                      >
-                        {canvas.name}
-                      </span>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {sortMode === 'manual' 
+                ? orderedCanvases.map((canvas, idx) => renderCanvasCard(canvas, idx))
+                : filteredCanvases.map((canvas, idx) => renderCanvasCard(canvas, idx))
+              }
             </div>
           )}
 
@@ -552,6 +695,22 @@ export const CanvasGrid: React.FC = () => {
           >
             <ArrowUp className="w-4 h-4" />
             Back to top
+          </button>
+        )}
+
+        {/* Floating FAB for Arranging in Manual Mode */}
+        {sortMode === 'manual' && (
+          <button
+            onClick={handleToggleArranging}
+            className={`fixed bottom-6 right-6 z-30 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer outline-none ${
+              isArranging
+                ? 'bg-[#1a1a1a] text-white dark:bg-white dark:text-[#1a1a1a]'
+                : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+            title={isArranging ? 'Done arranging (save order)' : 'Arrange canvases'}
+            aria-label={isArranging ? 'Done arranging' : 'Arrange canvases'}
+          >
+            {isArranging ? <X className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
           </button>
         )}
       </div>

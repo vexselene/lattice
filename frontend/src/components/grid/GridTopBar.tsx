@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Lock, Menu, Upload, Settings, X, Sun, Moon } from 'lucide-react';
+import { Search, Lock, Menu, Upload, Settings, X, Sun, Moon, ArrowUpDown, ChevronRight, Check } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -19,9 +19,10 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
   onToggleSearch,
 }) => {
   const { logout } = useAuthStore();
-  const { importCanvas } = useCanvasStore();
+  const { importCanvas, sortMode, setSortMode } = useCanvasStore();
   const { theme, toggleTheme } = useUIStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sortSubmenuOpen, setSortSubmenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +37,7 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as HTMLElement)) {
         setMenuOpen(false);
+        setSortSubmenuOpen(false);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,6 +45,7 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
         e.preventDefault();
         e.stopPropagation();
         setMenuOpen(false);
+        setSortSubmenuOpen(false);
         return;
       }
       if (e.key === 'Tab' && menuRef.current) {
@@ -165,7 +168,7 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30">
+            <div className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-30">
               <button
                 onClick={handleImport}
                 className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center gap-2.5 transition-colors"
@@ -181,6 +184,56 @@ export const GridTopBar: React.FC<GridTopBarProps> = ({
                 <Settings className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                 Settings
               </button>
+
+              <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
+
+              {/* Sort by item & submenu */}
+              <div className="relative group/sort">
+                <button
+                  type="button"
+                  onClick={() => setSortSubmenuOpen((prev) => !prev)}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ArrowUpDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                    Sort by
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover/sort:translate-x-0.5 transition-transform" />
+                </button>
+
+                <div
+                  className={`absolute right-full top-0 mr-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-40 ${
+                    sortSubmenuOpen ? 'block' : 'hidden group-hover/sort:block'
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      setSortMode('recent');
+                      setMenuOpen(false);
+                      setSortSubmenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center justify-between transition-colors"
+                  >
+                    <span className={sortMode === 'recent' ? 'font-semibold text-slate-900 dark:text-white' : ''}>
+                      Recently Used
+                    </span>
+                    {sortMode === 'recent' && <Check className="w-4 h-4 text-[#DE6B80]" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSortMode('manual');
+                      setMenuOpen(false);
+                      setSortSubmenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/70 flex items-center justify-between transition-colors"
+                  >
+                    <span className={sortMode === 'manual' ? 'font-semibold text-slate-900 dark:text-white' : ''}>
+                      Manual
+                    </span>
+                    {sortMode === 'manual' && <Check className="w-4 h-4 text-[#DE6B80]" />}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

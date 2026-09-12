@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('api', {
   cmdDeleteCanvas: (id, password) => native.cmdDeleteCanvas(id, password),
   cmdExportCanvas: (id, destinationPath) => native.cmdExportCanvas(id, destinationPath),
   cmdImportCanvas: (sourcePath) => native.cmdImportCanvas(sourcePath),
+  cmdReorderCanvases: (orderedIds) => native.cmdReorderCanvases(orderedIds),
 
   // Dialogs
   showSaveDialog: (defaultFileName) => ipcRenderer.invoke('show-save-dialog', defaultFileName),

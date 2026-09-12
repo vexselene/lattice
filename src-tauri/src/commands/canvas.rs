@@ -120,7 +120,7 @@ pub fn decode_bundle(bytes: &[u8]) -> Result<(String, Vec<u8>, Vec<u8>), AuthErr
 // Core Business Logic
 // =========================================================================
 
-/// Lists all canvases recorded in the unlocked vault registry, ordered by `modified_at` descending.
+/// Lists all canvases recorded in the unlocked vault registry, ordered by `order_index` ascending.
 pub fn list_canvases_core(state: &Mutex<AppState>) -> Result<Vec<CanvasSummary>, AuthError> {
     let state_guard = state
         .lock()
@@ -128,7 +128,7 @@ pub fn list_canvases_core(state: &Mutex<AppState>) -> Result<Vec<CanvasSummary>,
     let vault_conn = state_guard.vault_db.as_ref().ok_or(AuthError::NotUnlocked)?;
 
     let mut stmt = vault_conn
-        .prepare("SELECT id, name, created_at, modified_at FROM canvases ORDER BY modified_at DESC")
+        .prepare("SELECT id, name, created_at, modified_at, color_index, order_index FROM canvases ORDER BY order_index ASC")
         .map_err(|e| AuthError::Database(e.to_string()))?;
 
     let rows = stmt
@@ -138,6 +138,8 @@ pub fn list_canvases_core(state: &Mutex<AppState>) -> Result<Vec<CanvasSummary>,
                 name: row.get(1)?,
                 created_at: row.get(2)?,
                 modified_at: row.get(3)?,
+                color_index: row.get(4)?,
+                order_index: row.get(5)?,
             })
         })
         .map_err(|e| AuthError::Database(e.to_string()))?;
@@ -148,6 +150,43 @@ pub fn list_canvases_core(state: &Mutex<AppState>) -> Result<Vec<CanvasSummary>,
     }
 
     Ok(list)
+}
+
+/// Determines the next color_index (lowest available in [0..8]) and order_index (max + 1, or 0).
+pub fn pick_color_and_order(vault_conn: &rusqlite::Connection) -> Result<(i32, i32), AuthError> {
+    let mut counts = [0usize; 9];
+    let mut stmt = vault_conn
+        .prepare("SELECT color_index FROM canvases")
+        .map_err(|e| AuthError::Database(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |r| r.get::<_, i32>(0))
+        .map_err(|e| AuthError::Database(e.to_string()))?;
+    for r in rows {
+        let c = r.map_err(|e| AuthError::Database(e.to_string()))?;
+        if (0..9).contains(&c) {
+            counts[c as usize] += 1;
+        }
+    }
+
+    let mut min_slot = 0;
+    let mut min_count = counts[0];
+    for slot in 1..9 {
+        if counts[slot] < min_count {
+            min_count = counts[slot];
+            min_slot = slot;
+        }
+    }
+    let color_index = min_slot as i32;
+
+    let order_index: i32 = vault_conn
+        .query_row(
+            "SELECT COALESCE(MAX(order_index) + 1, 0) FROM canvases",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| AuthError::Database(e.to_string()))?;
+
+    Ok((color_index, order_index))
 }
 
 /// Creates a new canvas database encrypted with its own Argon2id-derived key and registers it in the vault.
@@ -220,12 +259,6 @@ pub async fn create_canvas_core(
     // Insert registry row into vault DB
     let now = chrono::Utc::now().to_rfc3339();
     let file_name = format!("{}.db", id);
-    let summary = CanvasSummary {
-        id: id.clone(),
-        name: trimmed_name.to_string(),
-        created_at: now.clone(),
-        modified_at: now.clone(),
-    };
 
     let state_guard = state
         .lock()
@@ -239,9 +272,20 @@ pub async fn create_canvas_core(
         }
     };
 
+    let (color_index, order_index) = pick_color_and_order(vault_conn)?;
+
+    let summary = CanvasSummary {
+        id: id.clone(),
+        name: trimmed_name.to_string(),
+        created_at: now.clone(),
+        modified_at: now.clone(),
+        color_index,
+        order_index,
+    };
+
     let insert_res = vault_conn.execute(
-        "INSERT INTO canvases (id, name, file_name, created_at, modified_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![&id, trimmed_name, &file_name, &now, &now],
+        "INSERT INTO canvases (id, name, file_name, created_at, modified_at, color_index, order_index) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![&id, trimmed_name, &file_name, &now, &now, color_index, order_index],
     );
 
     if let Err(err) = insert_res {
@@ -633,12 +677,6 @@ pub async fn duplicate_canvas_core(
     // Insert new registry row in vault
     let now = chrono::Utc::now().to_rfc3339();
     let file_name = format!("{}.db", new_id);
-    let summary = CanvasSummary {
-        id: new_id.clone(),
-        name: copy_name.clone(),
-        created_at: now.clone(),
-        modified_at: now.clone(),
-    };
 
     let state_guard = state
         .lock()
@@ -652,9 +690,20 @@ pub async fn duplicate_canvas_core(
         }
     };
 
+    let (color_index, order_index) = pick_color_and_order(vault_conn)?;
+
+    let summary = CanvasSummary {
+        id: new_id.clone(),
+        name: copy_name.clone(),
+        created_at: now.clone(),
+        modified_at: now.clone(),
+        color_index,
+        order_index,
+    };
+
     let insert_res = vault_conn.execute(
-        "INSERT INTO canvases (id, name, file_name, created_at, modified_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![&new_id, &copy_name, &file_name, &now, &now],
+        "INSERT INTO canvases (id, name, file_name, created_at, modified_at, color_index, order_index) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![&new_id, &copy_name, &file_name, &now, &now, color_index, order_index],
     );
 
     if let Err(e) = insert_res {
@@ -856,9 +905,11 @@ pub fn import_canvas_core(
     let now = chrono::Utc::now().to_rfc3339();
     let file_name = format!("{}.db", new_id);
 
+    let (color_index, order_index) = pick_color_and_order(vault_conn)?;
+
     let insert_res = vault_conn.execute(
-        "INSERT INTO canvases (id, name, file_name, created_at, modified_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![&new_id, &unique_name, &file_name, &now, &now],
+        "INSERT INTO canvases (id, name, file_name, created_at, modified_at, color_index, order_index) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![&new_id, &unique_name, &file_name, &now, &now, color_index, order_index],
     );
 
     if let Err(e) = insert_res {
@@ -872,6 +923,8 @@ pub fn import_canvas_core(
         name: unique_name,
         created_at: now.clone(),
         modified_at: now,
+        color_index,
+        order_index,
     })
 }
 
@@ -1018,6 +1071,55 @@ pub async fn change_canvas_password_core(
     Ok(())
 }
 
+/// Reorders canvases according to `ordered_ids`.
+///
+/// Runs in a transaction and validates that `ordered_ids` contains exactly the set of existing canvas IDs.
+pub fn reorder_canvases_core(
+    state: &Mutex<AppState>,
+    ordered_ids: Vec<String>,
+) -> Result<(), AuthError> {
+    let mut state_guard = state
+        .lock()
+        .map_err(|_| AuthError::Database("Lock poisoned".into()))?;
+    let vault_conn = state_guard.vault_db.as_mut().ok_or(AuthError::NotUnlocked)?;
+
+    let existing_ids: std::collections::HashSet<String> = {
+        let mut stmt = vault_conn
+            .prepare("SELECT id FROM canvases")
+            .map_err(|e| AuthError::Database(e.to_string()))?;
+        let ids = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| AuthError::Database(e.to_string()))?
+            .collect::<Result<_, _>>()
+            .map_err(|e| AuthError::Database(e.to_string()))?;
+        ids
+    };
+
+    let ordered_set: std::collections::HashSet<String> = ordered_ids.iter().cloned().collect();
+    if ordered_ids.len() != ordered_set.len() || ordered_set != existing_ids {
+        return Err(AuthError::Validation(
+            "Provided canvas IDs do not match existing canvas set".into(),
+        ));
+    }
+
+    let tx = vault_conn
+        .transaction()
+        .map_err(|e| AuthError::Database(e.to_string()))?;
+    {
+        let mut update_stmt = tx
+            .prepare("UPDATE canvases SET order_index = ?1 WHERE id = ?2")
+            .map_err(|e| AuthError::Database(e.to_string()))?;
+        for (index, id) in ordered_ids.iter().enumerate() {
+            update_stmt
+                .execute(rusqlite::params![index as i32, id])
+                .map_err(|e| AuthError::Database(e.to_string()))?;
+        }
+    }
+    tx.commit().map_err(|e| AuthError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
 // =========================================================================
 // N-API Wrappers
 // =========================================================================
@@ -1094,6 +1196,11 @@ pub fn cmd_export_canvas(id: String, destination_path: String) -> napi::Result<(
 #[napi]
 pub fn cmd_import_canvas(source_path: String) -> napi::Result<CanvasSummary> {
     import_canvas_core(&crate::state::GLOBAL_APP_STATE, source_path).map_err(napi::Error::from)
+}
+
+#[napi]
+pub fn cmd_reorder_canvases(ordered_ids: Vec<String>) -> napi::Result<()> {
+    reorder_canvases_core(&crate::state::GLOBAL_APP_STATE, ordered_ids).map_err(napi::Error::from)
 }
 
 #[cfg(test)]
@@ -1759,5 +1866,68 @@ mod tests {
             }
             other => panic!("Expected RateLimited error, got {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    async fn test_color_index_and_order_index_assignment_and_reorder() {
+        let _lock = TEST_LOCK.lock().await;
+        let env = TestEnv::new("color_and_order");
+        let state = env.setup_unlocked_state();
+
+        // 1. Sequential creates assign color_index 0, 1, 2... and order_index 0, 1, 2...
+        let mut created = Vec::new();
+        for i in 0..5 {
+            let c = create_canvas_core(&state, format!("Canvas {}", i), "pwd".into())
+                .await
+                .unwrap();
+            assert_eq!(c.color_index, i as i32);
+            assert_eq!(c.order_index, i as i32);
+            created.push(c);
+        }
+
+        // 2. list_canvases_core returns ordered by order_index ASC
+        let list = list_canvases_core(&state).unwrap();
+        assert_eq!(list.len(), 5);
+        for i in 0..5 {
+            assert_eq!(list[i].id, created[i].id);
+            assert_eq!(list[i].order_index, i as i32);
+            assert_eq!(list[i].color_index, i as i32);
+        }
+
+        // 3. Delete middle canvas (Canvas 2 with color_index 2)
+        delete_canvas_core(&state, created[2].id.clone(), "pwd".into())
+            .await
+            .unwrap();
+
+        // 4. Create new canvas -> should reuse freed color_index 2, order_index is max + 1 = 5
+        let new_c = create_canvas_core(&state, "Reused Canvas".into(), "pwd".into())
+            .await
+            .unwrap();
+        assert_eq!(new_c.color_index, 2);
+        assert_eq!(new_c.order_index, 5);
+
+        // 5. Reorder canvases: reorder [new_c, c0, c1, c3, c4]
+        let remaining_ids = vec![
+            new_c.id.clone(),
+            created[0].id.clone(),
+            created[1].id.clone(),
+            created[3].id.clone(),
+            created[4].id.clone(),
+        ];
+        reorder_canvases_core(&state, remaining_ids.clone()).unwrap();
+
+        let reordered_list = list_canvases_core(&state).unwrap();
+        assert_eq!(reordered_list.len(), 5);
+        for (idx, expected_id) in remaining_ids.iter().enumerate() {
+            assert_eq!(&reordered_list[idx].id, expected_id);
+            assert_eq!(reordered_list[idx].order_index, idx as i32);
+        }
+
+        // 6. reorder_canvases_core with invalid set fails
+        let invalid_ids = vec![new_c.id.clone(), created[0].id.clone()];
+        assert!(matches!(
+            reorder_canvases_core(&state, invalid_ids),
+            Err(AuthError::Validation(_))
+        ));
     }
 }

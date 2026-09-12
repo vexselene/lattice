@@ -2,7 +2,6 @@
 
 .neubrutalist-card {
   position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -175,4 +174,25 @@
 .dark .pattern-variant-9 {
   background-image: radial-gradient(circle, rgba(236,72,153,0.18) 1.5px, transparent 1.5px);
   background-size: 16px 16px;
+}
+
+/* Drag insertion indicators */
+.drop-left::before,
+.drop-right::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 6px;
+  background-color: #DE6B80;
+  z-index: 50;
+  border-radius: 4px;
+}
+
+.drop-left::before {
+  left: -15px;
+}
+
+.drop-right::after {
+  right: -15px;
 }

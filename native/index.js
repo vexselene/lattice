@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { initApp, cmdAuthSetup, cmdAuthUnlock, cmdAuthLock, cmdAuthStatus, cmdUpdateSettings, cmdListCanvases, cmdCreateCanvas, cmdOpenCanvas, cmdCloseCanvas, cmdRenameCanvas, cmdDuplicateCanvas, cmdChangeCanvasPassword, cmdDeleteCanvas, cmdExportCanvas, cmdImportCanvas, cmdGetGraph, cmdGetNodes, cmdGetNode, cmdCreateNode, cmdUpdateNode, cmdDeleteNode, cmdGetNodePassword, cmdUpdateNodePosition, cmdGetEdges, cmdCreateEdge, cmdUpdateEdge, cmdDeleteEdge, cmdGetSubgraph, cmdSearch, cmdGeneratePassword } = nativeBinding
+const { initApp, cmdAuthSetup, cmdAuthUnlock, cmdAuthLock, cmdAuthStatus, cmdUpdateSettings, cmdListCanvases, cmdCreateCanvas, cmdOpenCanvas, cmdCloseCanvas, cmdRenameCanvas, cmdDuplicateCanvas, cmdChangeCanvasPassword, cmdDeleteCanvas, cmdExportCanvas, cmdImportCanvas, cmdReorderCanvases, cmdGetGraph, cmdGetNodes, cmdGetNode, cmdCreateNode, cmdUpdateNode, cmdDeleteNode, cmdGetNodePassword, cmdUpdateNodePosition, cmdGetEdges, cmdCreateEdge, cmdUpdateEdge, cmdDeleteEdge, cmdGetSubgraph, cmdSearch, cmdGeneratePassword } = nativeBinding
 
 module.exports.initApp = initApp
 module.exports.cmdAuthSetup = cmdAuthSetup
@@ -328,6 +328,7 @@ module.exports.cmdChangeCanvasPassword = cmdChangeCanvasPassword
 module.exports.cmdDeleteCanvas = cmdDeleteCanvas
 module.exports.cmdExportCanvas = cmdExportCanvas
 module.exports.cmdImportCanvas = cmdImportCanvas
+module.exports.cmdReorderCanvases = cmdReorderCanvases
 module.exports.cmdGetGraph = cmdGetGraph
 module.exports.cmdGetNodes = cmdGetNodes
 module.exports.cmdGetNode = cmdGetNode

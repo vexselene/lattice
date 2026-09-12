@@ -26,6 +26,10 @@ export interface CanvasSummary {
   modifiedAt: string;
   created_at?: string;
   modified_at?: string;
+  colorIndex: number;
+  orderIndex: number;
+  color_index?: number;
+  order_index?: number;
 }
 
 export interface LatticeApi {
@@ -48,6 +52,7 @@ export interface LatticeApi {
   cmdDeleteCanvas: (id: string, password: string) => Promise<void>;
   cmdExportCanvas: (id: string, destinationPath: string) => void | Promise<void>;
   cmdImportCanvas: (sourcePath: string) => CanvasSummary | Promise<CanvasSummary>;
+  cmdReorderCanvases: (orderedIds: string[]) => void | Promise<void>;
 
   // Dialogs
   showSaveDialog: (defaultFileName?: string) => Promise<string | null>;

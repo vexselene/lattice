@@ -10,11 +10,14 @@ import {
   deleteCanvas as apiDeleteCanvas,
   exportCanvas as apiExportCanvas,
   importCanvas as apiImportCanvas,
+  reorderCanvases as apiReorderCanvases,
   formatErrorMessage,
 } from '../api/canvas';
 import type { CanvasSummary } from '../api/canvas';
 import { useGraphStore } from './graphStore';
 import { useUIStore } from './uiStore';
+
+export type CanvasSortMode = 'recent' | 'manual';
 
 export interface CanvasState {
   canvases: CanvasSummary[];
@@ -23,6 +26,7 @@ export interface CanvasState {
   closingCanvasId: string | null;
   isLoadingCanvases: boolean;
   error: string | null;
+  sortMode: CanvasSortMode;
 
   fetchCanvases: () => Promise<void>;
   createCanvas: (name: string, password: string) => Promise<CanvasSummary>;
@@ -36,9 +40,19 @@ export interface CanvasState {
   deleteCanvas: (id: string, password: string) => Promise<void>;
   exportCanvas: (id: string) => Promise<void>;
   importCanvas: () => Promise<void>;
+  reorderCanvases: (orderedIds: string[]) => Promise<void>;
+  setSortMode: (mode: CanvasSortMode) => void;
   setError: (error: string | null) => void;
   resetCanvasState: () => void;
 }
+
+const getInitialSortMode = (): CanvasSortMode => {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('lattice-canvas-sort-mode');
+    if (saved === 'manual') return 'manual';
+  }
+  return 'recent';
+};
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   canvases: [],
@@ -47,6 +61,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   closingCanvasId: null,
   isLoadingCanvases: false,
   error: null,
+  sortMode: getInitialSortMode(),
+
+  setSortMode: (mode) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('lattice-canvas-sort-mode', mode);
+    }
+    set({ sortMode: mode });
+  },
 
   setUnlockingCanvas: (canvas) => set({ unlockingCanvas: canvas }),
   setClosingCanvasId: (id) => set({ closingCanvasId: id }),
@@ -168,6 +190,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (summary) {
         await get().fetchCanvases();
       }
+    } catch (err) {
+      set({ error: formatErrorMessage(err) });
+      throw err;
+    }
+  },
+
+  reorderCanvases: async (orderedIds: string[]) => {
+    set({ error: null });
+    try {
+      await apiReorderCanvases(orderedIds);
+      await get().fetchCanvases();
     } catch (err) {
       set({ error: formatErrorMessage(err) });
       throw err;

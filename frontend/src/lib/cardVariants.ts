@@ -82,8 +82,8 @@ export const CARD_VARIANTS: CardVariant[] = [
   },
 ];
 
-export function getCardVariant(index: number): CardVariant {
-  return CARD_VARIANTS[index % 9];
+export function getCardVariant(colorIndex: number): CardVariant {
+  return CARD_VARIANTS[Math.abs(colorIndex) % 9] || CARD_VARIANTS[0];
 }
 
 export function formatCanvasDate(dateStr?: string): { date: string; time: string } {

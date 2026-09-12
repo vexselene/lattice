@@ -29,8 +29,8 @@ describe('canvasStore', () => {
 
   it('fetchCanvases populates state', async () => {
     const mockCanvases = [
-      { id: 'c1', name: 'Canvas 1', createdAt: '2026-01-01', modifiedAt: '2026-01-02' },
-      { id: 'c2', name: 'Canvas 2', createdAt: '2026-01-03', modifiedAt: '2026-01-04' },
+      { id: 'c1', name: 'Canvas 1', createdAt: '2026-01-01', modifiedAt: '2026-01-02', colorIndex: 0, orderIndex: 0 },
+      { id: 'c2', name: 'Canvas 2', createdAt: '2026-01-03', modifiedAt: '2026-01-04', colorIndex: 1, orderIndex: 1 },
     ];
     vi.mocked(canvasApi.listCanvases).mockResolvedValue(mockCanvases);
 
@@ -76,7 +76,7 @@ describe('canvasStore', () => {
     useCanvasStore.setState({
       activeCanvasId: 'c1',
       closingCanvasId: 'c1',
-      canvases: [{ id: 'c1', name: 'Test Canvas', createdAt: '2026-01-01', modifiedAt: '2026-01-02' }],
+      canvases: [{ id: 'c1', name: 'Test Canvas', createdAt: '2026-01-01', modifiedAt: '2026-01-02', colorIndex: 0, orderIndex: 0 }],
       isLoadingCanvases: true,
       error: 'Some error',
     });

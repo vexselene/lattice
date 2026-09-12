@@ -50,6 +50,8 @@ export function formatErrorMessage(err: any): string {
 function normalizeCanvasSummary(raw: any): CanvasSummary {
   const createdAt = raw.createdAt ?? raw.created_at ?? '';
   const modifiedAt = raw.modifiedAt ?? raw.modified_at ?? '';
+  const colorIndex = raw.colorIndex ?? raw.color_index ?? 0;
+  const orderIndex = raw.orderIndex ?? raw.order_index ?? 0;
   return {
     id: raw.id,
     name: raw.name,
@@ -57,6 +59,10 @@ function normalizeCanvasSummary(raw: any): CanvasSummary {
     modifiedAt,
     created_at: createdAt,
     modified_at: modifiedAt,
+    colorIndex,
+    orderIndex,
+    color_index: colorIndex,
+    order_index: orderIndex,
   };
 }
 
@@ -187,6 +193,16 @@ export const importCanvas = async (): Promise<CanvasSummary | null> => {
       return normalizeCanvasSummary(summary);
     }
     return null;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+};
+
+export const reorderCanvases = async (orderedIds: string[]): Promise<void> => {
+  try {
+    if (window.api?.cmdReorderCanvases) {
+      await window.api.cmdReorderCanvases(orderedIds);
+    }
   } catch (err) {
     throw normalizeError(err);
   }

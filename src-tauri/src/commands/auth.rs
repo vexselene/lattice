@@ -284,7 +284,7 @@ mod tests {
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        assert_eq!(cols, vec!["id", "name", "file_name", "created_at", "modified_at"]);
+        assert_eq!(cols, vec!["id", "name", "file_name", "created_at", "modified_at", "color_index", "order_index"]);
     }
 
     #[tokio::test]
@@ -479,7 +479,7 @@ mod tests {
         // Create vault
         auth_unlock_core(&db_file, &salt_file, &state, "correct-password").await.unwrap();
 
-        let run_attempt = |id: usize, pwd: &'static str| {
+        let run_attempt = |_id: usize, pwd: &'static str| {
             let db = db_file.clone();
             let salt = salt_file.clone();
             let s = &state;

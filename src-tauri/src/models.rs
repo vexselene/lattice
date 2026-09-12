@@ -190,6 +190,8 @@ pub struct CanvasSummary {
     pub name: String,
     pub created_at: String,
     pub modified_at: String,
+    pub color_index: i32,
+    pub order_index: i32,
 }
 
 #[cfg(test)]

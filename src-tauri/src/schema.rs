@@ -146,7 +146,9 @@ CREATE TABLE IF NOT EXISTS canvases (
     name        TEXT NOT NULL,
     file_name   TEXT NOT NULL,
     created_at  TEXT NOT NULL,
-    modified_at TEXT NOT NULL
+    modified_at TEXT NOT NULL,
+    color_index INTEGER NOT NULL DEFAULT 0,
+    order_index INTEGER NOT NULL DEFAULT 0
 );
 "#;
 

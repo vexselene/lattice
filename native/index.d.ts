@@ -19,6 +19,7 @@ export declare function cmdChangeCanvasPassword(id: string, oldPassword: string,
 export declare function cmdDeleteCanvas(id: string, password: string): Promise<void>
 export declare function cmdExportCanvas(id: string, destinationPath: string): void
 export declare function cmdImportCanvas(sourcePath: string): CanvasSummary
+export declare function cmdReorderCanvases(orderedIds: Array<string>): void
 export declare function cmdGetGraph(): GraphData
 export declare function cmdGetNodes(nodeType: string, skip?: number | undefined | null, limit?: number | undefined | null): Array<GraphNode>
 export declare function cmdGetNode(nodeType: string, nodeId: string): GraphNode
@@ -74,4 +75,6 @@ export interface CanvasSummary {
   name: string
   createdAt: string
   modifiedAt: string
+  colorIndex: number
+  orderIndex: number
 }
