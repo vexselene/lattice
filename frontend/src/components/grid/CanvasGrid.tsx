@@ -314,6 +314,14 @@ export const CanvasGrid: React.FC = () => {
           }
           break;
         }
+        case 'Escape': {
+          e.preventDefault();
+          setSelectedId(null);
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          break;
+        }
         default:
           break;
       }
@@ -623,7 +631,12 @@ export const CanvasGrid: React.FC = () => {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 relative"
+        onClick={(e) => {
+          if (!(e.target as Element).closest('.neubrutalist-card, .neubrutalist-create-tile, button')) {
+            setSelectedId(null);
+          }
+        }}
+        className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 relative select-none"
       >
         <div className="w-full">
           {isLoadingCanvases && canvases.length === 0 ? (
