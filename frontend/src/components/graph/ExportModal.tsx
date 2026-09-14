@@ -100,8 +100,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         // Off-screen canvas conversion
         contentToSave = await new Promise<string>((resolve, reject) => {
           const img = new Image();
-          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-          const blobUrl = URL.createObjectURL(svgBlob);
+          // Use data URI instead of Blob URI to comply with strict CSP (img-src data: is allowed, blob: is blocked)
+          const blobUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
 
           img.onload = () => {
             try {
@@ -127,13 +127,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               }
             } catch (e) {
               reject(e);
-            } finally {
-              URL.revokeObjectURL(blobUrl);
             }
           };
 
           img.onerror = () => {
-            URL.revokeObjectURL(blobUrl);
             reject(new Error('Failed to load SVG into image for canvas rasterization'));
           };
 

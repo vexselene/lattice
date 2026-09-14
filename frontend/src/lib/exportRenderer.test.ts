@@ -88,4 +88,22 @@ describe('exportRenderer dual-pill', () => {
     // The edge starts exactly at 164 + 158 = 322 (right handle of the expanded service pill)
     expect(sourceX).toBe(322);
   });
+
+  it('generates valid xml with special characters in user input', () => {
+    const nodes: FlowNode[] = [
+      {
+        id: 'node-1',
+        type: 'account',
+        position: { x: 0, y: 0 },
+        data: {
+          username: 'test"<>',
+          service_name: 'serv"<>',
+          service_color: '"> <bad_tag/> '
+        } as any
+      }
+    ];
+    const svg = graphToSvgString(nodes, [], 'all', { theme: 'dark' });
+    expect(svg).not.toContain('<bad_tag/>');
+  });
 });
+

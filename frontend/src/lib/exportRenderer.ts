@@ -199,7 +199,7 @@ function renderNodeAsSvg(
   const isDualPill = type === 'account' && Boolean(data.service_name || data.service_id);
   if (isDualPill) {
     const serviceName = data.service_name || data.service_id;
-    const serviceColor = data.service_color || '#3B82F6';
+    const serviceColor = escapeXml(data.service_color || '#3B82F6');
     const sFontSize = 12;
     const sMaxChars = Math.floor(maxTextPx / (sFontSize * 0.6));
     const sDisplayLabel = serviceName.length > sMaxChars ? serviceName.slice(0, sMaxChars - 1) + '\u2026' : serviceName;
@@ -247,7 +247,7 @@ function renderNodeAsSvg(
       `<defs><clipPath id="${clipId}"><rect x="${textX}" y="${paddingY}" width="${maxTextPx}" height="${H - paddingY * 2}"/></clipPath></defs>`
     );
     parts.push(
-      `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="500" fill="${colors.text}" dominant-baseline="central" clip-path="url(#${clipId})">${escapeXml(displayLabel)}</text>`
+      `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="500" fill="${colors.text}" dy="0.35em" clip-path="url(#${clipId})">${escapeXml(displayLabel)}</text>`
     );
 
     // Right text (service)
@@ -258,7 +258,7 @@ function renderNodeAsSvg(
       `<defs><clipPath id="${sClipId}"><rect x="${sTextX}" y="${paddingY}" width="${maxTextPx}" height="${H - paddingY * 2}"/></clipPath></defs>`
     );
     parts.push(
-      `<text x="${sTextX}" y="${sTextY}" font-family="${fontFamily}" font-size="${sFontSize}" font-weight="600" fill="${serviceColor}" dominant-baseline="central" clip-path="url(#${sClipId})">${escapeXml(sDisplayLabel)}</text>`
+      `<text x="${sTextX}" y="${sTextY}" font-family="${fontFamily}" font-size="${sFontSize}" font-weight="600" fill="${serviceColor}" dy="0.35em" clip-path="url(#${sClipId})">${escapeXml(sDisplayLabel)}</text>`
     );
 
     return `<g transform="translate(${nodeX},${nodeY})" opacity="${opacity}"${filterStr}>\n  ${parts.join('\n  ')}\n</g>`;
@@ -283,7 +283,7 @@ function renderNodeAsSvg(
     `<defs><clipPath id="${clipId}"><rect x="${textX}" y="${paddingY}" width="${maxTextPx}" height="${H - paddingY * 2}"/></clipPath></defs>`
   );
   parts.push(
-    `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="500" fill="${colors.text}" dominant-baseline="central" clip-path="url(#${clipId})">${escapeXml(displayLabel)}</text>`
+    `<text x="${textX}" y="${textY}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="500" fill="${colors.text}" dy="0.35em" clip-path="url(#${clipId})">${escapeXml(displayLabel)}</text>`
   );
 
   return `<g transform="translate(${nodeX},${nodeY})" opacity="${opacity}"${filterStr}>\n  ${parts.join('\n  ')}\n</g>`;
@@ -523,7 +523,7 @@ export function graphToSvgString(
       edgeMarkup += `
       <g transform="translate(${labelX},${labelY})" opacity="${opacity}">
         <rect x="${-rectW / 2}" y="${-rectH / 2}" width="${rectW}" height="${rectH}" rx="${labelCfg.borderRadius}" fill="${themeColors.bg}" stroke="${themeColors.border}" stroke-width="1"/>
-        <text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${labelCfg.fontSizePx}px" font-weight="${labelCfg.fontWeight}" font-family="${labelCfg.fontFamily}" fill="${themeColors.text}">${escapeXml(formatted)}</text>
+        <text x="0" y="0" text-anchor="middle" dy="0.35em" font-size="${labelCfg.fontSizePx}px" font-weight="${labelCfg.fontWeight}" font-family="${labelCfg.fontFamily}" fill="${themeColors.text}">${escapeXml(formatted)}</text>
       </g>`;
     }
     edgeSvgList.push(edgeMarkup);
